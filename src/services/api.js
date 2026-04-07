@@ -1,4 +1,4 @@
-const API_URL = "https://finance-control-api-production.up.railway.app";
+const API_URL = "https://finance-control-api-production.up.railway.app/api";
 
 // ================= AUTH =================
 
