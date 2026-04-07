@@ -69,6 +69,7 @@ src/
 │   └── Settings.jsx
 └── services/
 └── api.js
+
 ---
 
 ## 🚀 Como rodar localmente
@@ -117,4 +118,4 @@ Acesse em: http://localhost:5173
 Desenvolvido por **Guilherme Salvatini**
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-blue?logo=linkedin)](https://www.linkedin.com/in/guilherme-salvatini-623326361/)
-[![GitHub](https://img.shields.io/badge/GitHub-black?logo=github)](https://github.com/Salvatini95)
+[![GitHub](https://img.shields.io/badge/GitHub-black?logo=github)](https://github.com/Salvatini95)  
