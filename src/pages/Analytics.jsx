@@ -10,7 +10,7 @@ import {
   ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis
 } from "recharts";
 
-const API_URL = "http://localhost:5000/api";
+const API_URL = "https://finance-control-api-production.up.railway.app/api";
 
 function fmt(value) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);

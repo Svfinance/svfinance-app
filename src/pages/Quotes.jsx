@@ -5,7 +5,7 @@ import Sidebar from "../components/layout/Sidebar";
 import logoGif from "../assets/video.gif";
 import { useTheme } from "../contexts/ThemeContext";
 
-const API = "http://localhost:5000/api";
+const API = "https://finance-control-api-production.up.railway.app/api";
 const token = () => localStorage.getItem("token");
 
 function fmt(v) {
