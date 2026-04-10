@@ -34,7 +34,6 @@ const STATUS_MAP = {
   cancelled: { label:"Cancelado", color:"#f59e0b", bg:"rgba(245,158,11,0.12)"  },
 };
 
-// ─── THEMES de impressão: INTOCADO ───
 const THEMES = {
   dark: {
     label:"🌙 Escuro",
@@ -82,7 +81,11 @@ const EMPTY_FORM = {
   client_name:"", client_email:"", client_phone:"",
   client_document:"", client_address:"",
   status:"draft", valid_until:"", payment_terms:"",
-  notes:"", discount:0,
+  notes:"", discount:0, client_id: null,
+};
+
+const EMPTY_CLIENT_FORM = {
+  name:"", email:"", phone:"", document:"", address:"", notes:"",
 };
 
 export default function Quotes() {
@@ -95,6 +98,7 @@ export default function Quotes() {
   const [sidebarOpen, setSidebarOpen]       = useState(false);
   const [quotes, setQuotes]                 = useState([]);
   const [products, setProducts]             = useState([]);
+  const [clients, setClients]               = useState([]);
   const [company, setCompany]               = useState({});
   const [loading, setLoading]               = useState(true);
   const [view, setView]                     = useState("list");
@@ -112,6 +116,10 @@ export default function Quotes() {
   const [companyModal, setCompanyModal]     = useState(false);
   const [companyForm, setCompanyForm]       = useState({});
   const [logoPreview, setLogoPreview]       = useState(null);
+  // ✅ NOVO: modal de novo cliente
+  const [newClientModal, setNewClientModal] = useState(false);
+  const [clientForm, setClientForm]         = useState(EMPTY_CLIENT_FORM);
+  const [savingClient, setSavingClient]     = useState(false);
   const logoInputRef = useRef();
 
   async function fetchQuotes() {
@@ -125,6 +133,11 @@ export default function Quotes() {
     const data = await res.json();
     setProducts(Array.isArray(data) ? data : []);
   }
+  async function fetchClients() {
+    const res  = await fetch(`${API}/clients`, { headers:{ Authorization:`Bearer ${token()}` } });
+    const data = await res.json();
+    setClients(Array.isArray(data) ? data : []);
+  }
   async function fetchCompany() {
     const res  = await fetch(`${API}/company`, { headers:{ Authorization:`Bearer ${token()}` } });
     const data = await res.json();
@@ -135,7 +148,7 @@ export default function Quotes() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await Promise.all([fetchQuotes(), fetchProducts(), fetchCompany()]);
+      await Promise.all([fetchQuotes(), fetchProducts(), fetchClients(), fetchCompany()]);
       setLoading(false);
     })();
   }, []);
@@ -164,10 +177,63 @@ export default function Quotes() {
     else showToast("Erro ao salvar.", "error");
   }
 
+  // ✅ Selecionar cliente da base — preenche os campos do formulário
+  function selectClient(clientId) {
+    if (!clientId) {
+      setForm(f => ({ ...f, client_id: null, client_name:"", client_email:"", client_phone:"", client_document:"", client_address:"" }));
+      return;
+    }
+    const c = clients.find(c => String(c.id) === String(clientId));
+    if (!c) return;
+    setForm(f => ({
+      ...f,
+      client_id:       c.id,
+      client_name:     c.name     || "",
+      client_email:    c.email    || "",
+      client_phone:    c.phone    || "",
+      client_document: c.document || "",
+      client_address:  c.address  || "",
+    }));
+  }
+
+  // ✅ Criar novo cliente direto no orçamento
+  async function handleSaveNewClient(e) {
+    e.preventDefault();
+    if (!clientForm.name.trim()) { showToast("Nome é obrigatório.", "error"); return; }
+    setSavingClient(true);
+    try {
+      const res  = await fetch(`${API}/clients`, {
+        method: "POST",
+        headers: { "Content-Type":"application/json", Authorization:`Bearer ${token()}` },
+        body: JSON.stringify(clientForm),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast("Cliente criado e selecionado!");
+        await fetchClients();
+        // preenche o formulário com o novo cliente
+        setForm(f => ({
+          ...f,
+          client_id:       data.id,
+          client_name:     clientForm.name,
+          client_email:    clientForm.email    || "",
+          client_phone:    clientForm.phone    || "",
+          client_document: clientForm.document || "",
+          client_address:  clientForm.address  || "",
+        }));
+        setNewClientModal(false);
+        setClientForm(EMPTY_CLIENT_FORM);
+      } else {
+        showToast(data.msg || "Erro ao criar cliente.", "error");
+      }
+    } catch { showToast("Erro de conexão.", "error"); }
+    finally { setSavingClient(false); }
+  }
+
   function openCreate() { setEditing(null); setForm(EMPTY_FORM); setItems([]); setView("form"); }
   function openEdit(q) {
     setEditing(q);
-    setForm({ client_name:q.client_name, client_email:q.client_email||"", client_phone:q.client_phone||"", client_document:q.client_document||"", client_address:q.client_address||"", status:q.status, valid_until:q.valid_until||"", payment_terms:q.payment_terms||"", notes:q.notes||"", discount:q.discount||0 });
+    setForm({ client_name:q.client_name, client_email:q.client_email||"", client_phone:q.client_phone||"", client_document:q.client_document||"", client_address:q.client_address||"", status:q.status, valid_until:q.valid_until||"", payment_terms:q.payment_terms||"", notes:q.notes||"", discount:q.discount||0, client_id: q.client_id || null });
     setItems(q.items||[]);
     setView("form");
   }
@@ -218,7 +284,6 @@ export default function Quotes() {
     else showToast("Erro ao remover.","error");
   }
 
-  // ── VENDER: cria O.S a partir do orçamento aprovado ──
   async function handleSell(quote) {
     setSelling(true);
     try {
@@ -231,7 +296,6 @@ export default function Quotes() {
         showToast(`✅ Venda ${data.number} criada! Acesse Vendas para concluir.`);
         setSellConfirm(null);
         fetchQuotes();
-        // redireciona para vendas após 1.5s
         setTimeout(() => navigate("/sales"), 1500);
       } else {
         showToast(data.msg || "Erro ao criar venda.", "error");
@@ -271,7 +335,7 @@ export default function Quotes() {
   if (loading) return <h2 style={{ color:theme.textPrimary, padding:20 }}>Carregando...</h2>;
 
   // ══════════════════════════════
-  // VIEW: IMPRESSÃO — INTOCADA
+  // VIEW: IMPRESSÃO
   // ══════════════════════════════
   if (view==="print" && printQuote) {
     const q = printQuote;
@@ -379,18 +443,55 @@ export default function Quotes() {
             {editing && <p style={{ color:theme.textMuted, margin:"4px 0 0" }}>{editing.number}</p>}
           </div>
           <form onSubmit={handleSubmit}>
+
+            {/* ✅ SEÇÃO CLIENTE — com select da base + botão novo cliente */}
             <div style={{ marginBottom:28 }}>
               <p style={sectionLabel}>👤 Dados do Cliente</p>
               <div style={formCard}>
+
+                {/* SELECT DE CLIENTES DA BASE */}
+                <div style={{ ...fieldStyle, marginBottom:16 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <label style={labelStyle}>Selecionar cliente cadastrado</label>
+                    <button type="button" onClick={() => setNewClientModal(true)} style={{ background:theme.primaryGrad, color:"#fff", border:"none", borderRadius:8, padding:"5px 12px", fontSize:"0.78rem", fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>
+                      + Novo Cliente
+                    </button>
+                  </div>
+                  <select style={selectStyle} value={form.client_id || ""} onChange={e => selectClient(e.target.value)}>
+                    <option value="">— Digite manualmente ou selecione —</option>
+                    {clients.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}{c.document ? ` — ${c.document}` : ""}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ height:1, background:`linear-gradient(90deg,transparent,${theme.borderCard},transparent)`, margin:"0 0 16px" }} />
+
                 <div style={{ display:"grid", gridTemplateColumns: isMobile?"1fr":"1fr 1fr 1fr", gap:16 }}>
-                  <div style={{ ...fieldStyle, gridColumn: isMobile?"1":"1 / -1" }}><label style={labelStyle}>Nome do Cliente *</label><input style={inputStyle} required placeholder="Nome completo ou razão social" value={form.client_name} onChange={e => setForm({...form, client_name:e.target.value})} onFocus={e=>e.target.style.borderColor=theme.primary} onBlur={e=>e.target.style.borderColor=theme.borderCard} /></div>
-                  <div style={fieldStyle}><label style={labelStyle}>CPF / CNPJ</label><input style={inputStyle} placeholder="000.000.000-00" value={form.client_document} onChange={e => setForm({...form, client_document:e.target.value})} onFocus={e=>e.target.style.borderColor=theme.primary} onBlur={e=>e.target.style.borderColor=theme.borderCard} /></div>
-                  <div style={fieldStyle}><label style={labelStyle}>Telefone</label><input style={inputStyle} placeholder="(44) 99999-9999" value={form.client_phone} onChange={e => setForm({...form, client_phone:e.target.value})} onFocus={e=>e.target.style.borderColor=theme.primary} onBlur={e=>e.target.style.borderColor=theme.borderCard} /></div>
-                  <div style={fieldStyle}><label style={labelStyle}>E-mail</label><input style={inputStyle} type="email" placeholder="cliente@email.com" value={form.client_email} onChange={e => setForm({...form, client_email:e.target.value})} onFocus={e=>e.target.style.borderColor=theme.primary} onBlur={e=>e.target.style.borderColor=theme.borderCard} /></div>
-                  <div style={{ ...fieldStyle, gridColumn: isMobile?"1":"2 / -1" }}><label style={labelStyle}>Endereço</label><input style={inputStyle} placeholder="Rua, número, cidade..." value={form.client_address} onChange={e => setForm({...form, client_address:e.target.value})} onFocus={e=>e.target.style.borderColor=theme.primary} onBlur={e=>e.target.style.borderColor=theme.borderCard} /></div>
+                  <div style={{ ...fieldStyle, gridColumn: isMobile?"1":"1 / -1" }}>
+                    <label style={labelStyle}>Nome do Cliente *</label>
+                    <input style={inputStyle} required placeholder="Nome completo ou razão social" value={form.client_name} onChange={e => setForm({...form, client_name:e.target.value, client_id: null})} onFocus={e=>e.target.style.borderColor=theme.primary} onBlur={e=>e.target.style.borderColor=theme.borderCard} />
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>CPF / CNPJ</label>
+                    <input style={inputStyle} placeholder="000.000.000-00" value={form.client_document} onChange={e => setForm({...form, client_document:e.target.value})} onFocus={e=>e.target.style.borderColor=theme.primary} onBlur={e=>e.target.style.borderColor=theme.borderCard} />
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Telefone</label>
+                    <input style={inputStyle} placeholder="(44) 99999-9999" value={form.client_phone} onChange={e => setForm({...form, client_phone:e.target.value})} onFocus={e=>e.target.style.borderColor=theme.primary} onBlur={e=>e.target.style.borderColor=theme.borderCard} />
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>E-mail</label>
+                    <input style={inputStyle} type="email" placeholder="cliente@email.com" value={form.client_email} onChange={e => setForm({...form, client_email:e.target.value})} onFocus={e=>e.target.style.borderColor=theme.primary} onBlur={e=>e.target.style.borderColor=theme.borderCard} />
+                  </div>
+                  <div style={{ ...fieldStyle, gridColumn: isMobile?"1":"2 / -1" }}>
+                    <label style={labelStyle}>Endereço</label>
+                    <input style={inputStyle} placeholder="Rua, número, cidade..." value={form.client_address} onChange={e => setForm({...form, client_address:e.target.value})} onFocus={e=>e.target.style.borderColor=theme.primary} onBlur={e=>e.target.style.borderColor=theme.borderCard} />
+                  </div>
                 </div>
               </div>
             </div>
+
             <div style={{ marginBottom:28 }}>
               <p style={sectionLabel}>📋 Condições do Orçamento</p>
               <div style={formCard}>
@@ -403,6 +504,7 @@ export default function Quotes() {
                 </div>
               </div>
             </div>
+
             <div style={{ marginBottom:28 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
                 <p style={{ ...sectionLabel, marginBottom:0 }}>📦 Itens do Orçamento</p>
@@ -441,12 +543,60 @@ export default function Quotes() {
                 </div>
               )}
             </div>
+
             <div style={{ display:"flex", justifyContent:"flex-end", gap:12, marginBottom:48, flexDirection: isMobile?"column":"row" }}>
               <button type="button" style={{ ...btnSecondary, width: isMobile?"100%":"auto" }} onClick={() => setView("list")}>Cancelar</button>
               <button type="submit" style={{ ...btnPrimary, width: isMobile?"100%":"auto" }}>{editing?"Salvar Alterações":"Criar Orçamento"}</button>
             </div>
           </form>
         </div>
+
+        {/* ✅ MODAL NOVO CLIENTE */}
+        {newClientModal && (
+          <div style={overlay} onClick={() => setNewClientModal(false)}>
+            <div style={{ ...glassModal, borderRadius:18, padding: isMobile?"24px 20px":32, width: isMobile?"92%":"100%", maxWidth:500, maxHeight:"90vh", overflowY:"auto", boxShadow: isGlass?"0 20px 60px rgba(0,0,0,0.15)":"0 25px 60px rgba(0,0,0,0.6)" }} onClick={e=>e.stopPropagation()}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
+                <h2 style={{ margin:0, fontSize:"1.2rem", fontWeight:700, color:theme.textPrimary }}>👤 Novo Cliente</h2>
+                <button style={btnClose} onClick={() => setNewClientModal(false)}>✕</button>
+              </div>
+              <form onSubmit={handleSaveNewClient}>
+                <div style={{ display:"flex", flexDirection:"column", gap:14, marginBottom:24 }}>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Nome *</label>
+                    <input style={inputStyle} required placeholder="Nome completo ou razão social" value={clientForm.name} onChange={e=>setClientForm({...clientForm,name:e.target.value})} />
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Email</label>
+                    <input style={inputStyle} type="email" placeholder="cliente@email.com" value={clientForm.email} onChange={e=>setClientForm({...clientForm,email:e.target.value})} />
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Telefone</label>
+                    <input style={inputStyle} placeholder="(44) 99999-9999" value={clientForm.phone} onChange={e=>setClientForm({...clientForm,phone:e.target.value})} />
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>CPF / CNPJ</label>
+                    <input style={inputStyle} placeholder="000.000.000-00" value={clientForm.document} onChange={e=>setClientForm({...clientForm,document:e.target.value})} />
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Endereço</label>
+                    <input style={inputStyle} placeholder="Rua, número, cidade..." value={clientForm.address} onChange={e=>setClientForm({...clientForm,address:e.target.value})} />
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Observações</label>
+                    <textarea style={{ ...inputStyle, resize:"vertical", minHeight:60 }} placeholder="Informações adicionais..." value={clientForm.notes} onChange={e=>setClientForm({...clientForm,notes:e.target.value})} />
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:12, flexDirection: isMobile?"column":"row", justifyContent:"flex-end" }}>
+                  <button type="button" style={{ ...btnSecondary, width: isMobile?"100%":"auto" }} onClick={() => setNewClientModal(false)}>Cancelar</button>
+                  <button type="submit" style={{ ...btnPrimary, width: isMobile?"100%":"auto", opacity: savingClient?0.6:1 }} disabled={savingClient}>
+                    {savingClient ? "Salvando..." : "Criar e Selecionar"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {toast && <div style={{ ...toastStyle, background: toast.type==="error"?"#ef4444":"#22c55e", right:28 }}>{toast.msg}</div>}
       </PageLayout>
     );
@@ -485,13 +635,12 @@ export default function Quotes() {
           </div>
         </div>
 
-        {/* CARDS */}
         <div style={{ display:"grid", gridTemplateColumns: isMobile?"1fr 1fr":"repeat(4,1fr)", gap:16, marginBottom:28 }}>
           {[
-            { icon:"📋", label:"Total",          value:quotes.length,                                                              color:theme.primary, border: isGlass?"rgba(255,255,255,0.5)":`${theme.primary}33` },
-            { icon:"✅", label:"Aprovados",      value:quotes.filter(q=>q.status==="approved").length,                            color:"#22c55e",     border: isGlass?"rgba(255,255,255,0.5)":"rgba(34,197,94,0.2)"  },
-            { icon:"⏳", label:"Pendentes",      value:quotes.filter(q=>q.status==="draft"||q.status==="sent").length,            color:"#f59e0b",     border: isGlass?"rgba(255,255,255,0.5)":"rgba(245,158,11,0.2)" },
-            { icon:"💰", label:"Total Aprovado", value:fmt(quotes.filter(q=>q.status==="approved").reduce((s,q)=>s+q.total,0)),   color:"#22c55e",     border: isGlass?"rgba(255,255,255,0.5)":"rgba(34,197,94,0.2)"  },
+            { icon:"📋", label:"Total",          value:quotes.length,                                                            color:theme.primary, border: isGlass?"rgba(255,255,255,0.5)":`${theme.primary}33` },
+            { icon:"✅", label:"Aprovados",      value:quotes.filter(q=>q.status==="approved").length,                          color:"#22c55e",     border: isGlass?"rgba(255,255,255,0.5)":"rgba(34,197,94,0.2)"  },
+            { icon:"⏳", label:"Pendentes",      value:quotes.filter(q=>q.status==="draft"||q.status==="sent").length,          color:"#f59e0b",     border: isGlass?"rgba(255,255,255,0.5)":"rgba(245,158,11,0.2)" },
+            { icon:"💰", label:"Total Aprovado", value:fmt(quotes.filter(q=>q.status==="approved").reduce((s,q)=>s+q.total,0)), color:"#22c55e",     border: isGlass?"rgba(255,255,255,0.5)":"rgba(34,197,94,0.2)"  },
           ].map((c,i) => (
             <div key={i} className="card3d-q" style={{ border:`1px solid ${c.border}` }}>
               <div style={{ fontSize:"1.5rem" }}>{c.icon}</div>
@@ -503,7 +652,6 @@ export default function Quotes() {
           ))}
         </div>
 
-        {/* FILTROS */}
         <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:20, alignItems:"center" }}>
           <input style={{ background:theme.bgInput, border:`1px solid ${isGlass?"rgba(255,255,255,0.4)":theme.borderCard}`, borderRadius:10, padding:"8px 14px", color:theme.textPrimary, fontSize:"0.88rem", outline:"none", width: isMobile?"100%":"280px", colorScheme, ...(isGlass && { backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)" }) }}
             type="text" placeholder="🔍 Buscar por cliente ou número..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -516,7 +664,6 @@ export default function Quotes() {
           </div>
         </div>
 
-        {/* TABELA */}
         <div className="table3d-q">
           {filteredQuotes.length === 0 ? (
             <div style={emptyState}><span style={{ fontSize:"2rem" }}>📭</span><p>Nenhum orçamento encontrado</p></div>
@@ -547,11 +694,8 @@ export default function Quotes() {
                       {!isMobile && <td style={{ ...td, color:theme.textMuted }}>{fmtDate(q.created_at)}</td>}
                       <td style={td}>
                         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                          {/* BOTÃO VENDER — só para orçamentos aprovados */}
                           {isApproved && (
-                            <button className="btn-sell" onClick={() => setSellConfirm(q)}>
-                              🛒 Vender
-                            </button>
+                            <button className="btn-sell" onClick={() => setSellConfirm(q)}>🛒 Vender</button>
                           )}
                           <button style={btnAction} onClick={() => openPrint(q)}>🖨️</button>
                           <button style={btnAction} onClick={() => openEdit(q)}>✏️</button>
@@ -567,34 +711,20 @@ export default function Quotes() {
         </div>
       </div>
 
-      {/* MODAL VENDER */}
       {sellConfirm && (
         <div style={overlay} onClick={() => !selling && setSellConfirm(null)}>
           <div style={{ ...glassModal, border: isGlass?"1px solid rgba(34,197,94,0.4)":`1px solid rgba(34,197,94,0.3)`, borderRadius:18, padding: isMobile?"28px 20px":36, width: isMobile?"92%":"100%", maxWidth:460, boxShadow: isGlass?"0 20px 60px rgba(0,0,0,0.15)":"0 25px 60px rgba(0,0,0,0.6)" }} onClick={e=>e.stopPropagation()}>
             <div style={{ textAlign:"center", marginBottom:24 }}>
               <div style={{ fontSize:"3rem", marginBottom:12 }}>🛒</div>
               <h2 style={{ margin:"0 0 8px", fontSize:"1.3rem", fontWeight:700, color:theme.textPrimary }}>Confirmar Venda</h2>
-              <p style={{ color:theme.textMuted, margin:0, fontSize:"0.9rem" }}>
-                Converter orçamento <strong style={{ color:theme.textPrimary }}>{sellConfirm.number}</strong> em venda?
-              </p>
+              <p style={{ color:theme.textMuted, margin:0, fontSize:"0.9rem" }}>Converter orçamento <strong style={{ color:theme.textPrimary }}>{sellConfirm.number}</strong> em venda?</p>
             </div>
             <div style={{ background: isGlass?"rgba(34,197,94,0.1)":"rgba(34,197,94,0.08)", border:"1px solid rgba(34,197,94,0.25)", borderRadius:12, padding:"16px 20px", marginBottom:24 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8, fontSize:"0.88rem" }}>
-                <span style={{ color:theme.textMuted }}>Cliente</span>
-                <span style={{ color:theme.textPrimary, fontWeight:600 }}>{sellConfirm.client_name}</span>
-              </div>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8, fontSize:"0.88rem" }}>
-                <span style={{ color:theme.textMuted }}>Itens</span>
-                <span style={{ color:theme.textPrimary }}>{(sellConfirm.items||[]).length} item(ns)</span>
-              </div>
-              <div style={{ display:"flex", justifyContent:"space-between", borderTop:"1px solid rgba(34,197,94,0.2)", paddingTop:10, marginTop:4 }}>
-                <span style={{ color:"#22c55e", fontWeight:700 }}>Total</span>
-                <span style={{ color:"#22c55e", fontWeight:700, fontSize:"1.1rem" }}>{fmt(sellConfirm.total)}</span>
-              </div>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8, fontSize:"0.88rem" }}><span style={{ color:theme.textMuted }}>Cliente</span><span style={{ color:theme.textPrimary, fontWeight:600 }}>{sellConfirm.client_name}</span></div>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8, fontSize:"0.88rem" }}><span style={{ color:theme.textMuted }}>Itens</span><span style={{ color:theme.textPrimary }}>{(sellConfirm.items||[]).length} item(ns)</span></div>
+              <div style={{ display:"flex", justifyContent:"space-between", borderTop:"1px solid rgba(34,197,94,0.2)", paddingTop:10, marginTop:4 }}><span style={{ color:"#22c55e", fontWeight:700 }}>Total</span><span style={{ color:"#22c55e", fontWeight:700, fontSize:"1.1rem" }}>{fmt(sellConfirm.total)}</span></div>
             </div>
-            <p style={{ color:theme.textMuted, fontSize:"0.82rem", textAlign:"center", marginBottom:20 }}>
-              Uma venda será criada com status <strong>Aberta</strong>. Acesse <strong>Vendas</strong> para concluir quando o cliente pagar.
-            </p>
+            <p style={{ color:theme.textMuted, fontSize:"0.82rem", textAlign:"center", marginBottom:20 }}>Uma venda será criada com status <strong>Aberta</strong>. Acesse <strong>Vendas</strong> para concluir quando o cliente pagar.</p>
             <div style={{ display:"flex", gap:12, flexDirection: isMobile?"column":"row" }}>
               <button style={{ ...btnSecondary, flex:1 }} onClick={() => setSellConfirm(null)} disabled={selling}>Cancelar</button>
               <button style={{ flex:2, background:"linear-gradient(135deg, #22c55e, #16a34a)", color:"#fff", border:"none", borderRadius:10, padding:"12px 20px", fontWeight:700, cursor: selling?"not-allowed":"pointer", fontSize:"1rem", boxShadow:"0 4px 15px rgba(34,197,94,0.4)", opacity: selling?0.7:1 }} onClick={() => handleSell(sellConfirm)} disabled={selling}>
@@ -605,7 +735,6 @@ export default function Quotes() {
         </div>
       )}
 
-      {/* MODAL EMPRESA */}
       {companyModal && (
         <div style={overlay} onClick={() => setCompanyModal(false)}>
           <div style={{ ...glassModal, borderRadius:18, padding: isMobile?"24px 20px":32, width: isMobile?"92%":"100%", maxWidth:620, maxHeight:"90vh", overflowY:"auto", boxShadow: isGlass?"0 20px 60px rgba(0,0,0,0.15)":"0 25px 60px rgba(0,0,0,0.6)" }} onClick={e=>e.stopPropagation()}>
@@ -633,7 +762,6 @@ export default function Quotes() {
         </div>
       )}
 
-      {/* MODAL DELETE */}
       {deleteConfirm && (
         <div style={overlay} onClick={() => setDeleteConfirm(null)}>
           <div style={{ ...glassModal, border: isGlass?"1px solid rgba(239,68,68,0.3)":`1px solid rgba(239,68,68,0.3)`, borderRadius:18, padding: isMobile?"24px 20px":32, width: isMobile?"92%":"100%", maxWidth:400, boxShadow: isGlass?"0 20px 60px rgba(0,0,0,0.15)":"0 25px 60px rgba(0,0,0,0.6)" }} onClick={e=>e.stopPropagation()}>
