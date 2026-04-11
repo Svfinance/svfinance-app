@@ -20,7 +20,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
     { to: "/transactions", icon: "💰", label: "Transações", roles: ["admin", "financial"] },
     { to: "/bills",        icon: "📄", label: "Contas",     roles: ["admin", "financial"] },
     { to: "/analytics",    icon: "📊", label: "Analytics",  roles: ["admin", "financial"] },
-    { to: "/products",     icon: "📦", label: "Produtos",   roles: null },
+    { to: "/products", icon: "📦", label: "Produtos", roles: ["admin", "financial", "stock", "seller"] },
     { to: "/quotes",       icon: "🧾", label: "Orçamentos", roles: null },
     { to: "/sales",        icon: "🛒", label: "Vendas",     roles: null },
     { to: "/team",         icon: "👤", label: "Equipe",     roles: ["admin"] },
