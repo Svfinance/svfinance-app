@@ -16,12 +16,12 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const accountType = localStorage.getItem("account_type") || "business";
   const isPersonal  = accountType === "personal";
 
-  // ✅ menu separado por tipo de conta
   const allMenuItems = isPersonal ? [
     { to: "/dashboard",    icon: "🏠", label: "Dashboard",  roles: null },
     { to: "/transactions", icon: "💰", label: "Transações", roles: null },
     { to: "/bills",        icon: "📄", label: "Contas",     roles: null },
     { to: "/analytics",    icon: "📊", label: "Analytics",  roles: null },
+    { to: "/goals",        icon: "🎯", label: "Metas",      roles: null },
     { to: "/settings",     icon: "🎨", label: "Temas",      roles: null },
   ] : [
     { to: "/dashboard",    icon: "🏠", label: "Dashboard",  roles: null },
@@ -52,9 +52,6 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
     ? "4px 0 24px rgba(0,0,0,0.1), inset 1px 0 0 rgba(255,255,255,0.5)"
     : "4px 0 24px rgba(0,0,0,0.4), inset 1px 0 0 rgba(255,255,255,0.06)";
 
-  // ══════════════════════════════
-  // MOBILE
-  // ══════════════════════════════
   if (isMobile) {
     return (
       <>
@@ -95,9 +92,6 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
     );
   }
 
-  // ══════════════════════════════
-  // DESKTOP
-  // ══════════════════════════════
   return (
     <div style={{ height:"100vh", position:"sticky", top:0, background:sidebarGlassBg, backdropFilter:sidebarBackdrop, WebkitBackdropFilter:sidebarBackdrop, borderRight:`1px solid ${sidebarBorder}`, boxShadow:sidebarBoxShadow, padding:"20px 10px 10px", transition:"all 0.3s ease", overflow:"hidden", width:sidebarOpen?"220px":"70px", display:"flex", flexDirection:"column", zIndex:100 }}
       onMouseEnter={() => setSidebarOpen(true)}
