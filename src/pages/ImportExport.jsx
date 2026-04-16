@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react';
 import PageLayout from '../components/layout/PageLayout';
 import { useTheme } from '../contexts/ThemeContext';
-import api from '../services/api';
 
 const MODULES = [
   {
