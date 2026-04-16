@@ -30,10 +30,15 @@ export default function ImportExport() {
   const [activeTab, setActiveTab] = useState('export');
 
   // Export
-  const [exportDates, setExportDates]   = useState({ from: '', to: '' });
-  const [exportFormat, setExportFormat] = useState('csv');
+  const [exportDates, setExportDates]     = useState({ from: '', to: '' });
+  const [exportFormat, setExportFormat]   = useState('csv');
   const [exportLoading, setExportLoading] = useState({});
   const [exportSuccess, setExportSuccess] = useState({});
+
+  // Exportar Tudo
+  const [exportAllLoading, setExportAllLoading] = useState(false);
+  const [exportAllSuccess, setExportAllSuccess] = useState(false);
+  const [exportAllProgress, setExportAllProgress] = useState([]);
 
   // Import
   const [selectedSystem, setSelectedSystem] = useState('generico');
@@ -45,7 +50,7 @@ export default function ImportExport() {
 
   const token = () => localStorage.getItem('token');
 
-  // ── cores adaptadas ao tema ──────────────────────────────
+  // ── cores ────────────────────────────────────────────────
   const cardBg     = isGlass ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.06)';
   const cardBorder = isGlass ? 'rgba(255,255,255,0.5)'  : 'rgba(255,255,255,0.1)';
   const inputBg    = isGlass ? 'rgba(255,255,255,0.5)'  : 'rgba(255,255,255,0.08)';
@@ -53,15 +58,23 @@ export default function ImportExport() {
   const textSub    = theme.textSecondary || theme.textMuted;
 
   const card = {
-    background:     cardBg,
-    border:         `1px solid ${cardBorder}`,
-    borderRadius:   16,
-    padding:        24,
-    backdropFilter: isGlass ? 'blur(16px)' : undefined,
+    background:           cardBg,
+    border:               `1px solid ${cardBorder}`,
+    borderRadius:         16,
+    padding:              24,
+    backdropFilter:       isGlass ? 'blur(16px)' : undefined,
     WebkitBackdropFilter: isGlass ? 'blur(16px)' : undefined,
   };
 
-  // ── EXPORTAR ─────────────────────────────────────────────
+  // ── fetch auxiliar ───────────────────────────────────────
+  const fetchExport = async (modKey, params) => {
+    const url  = `${BASE_URL}/import-export/export/${modKey}?${params}`;
+    const resp = await fetch(url, { headers: { Authorization: `Bearer ${token()}` } });
+    if (!resp.ok) throw new Error(`${modKey}: servidor retornou ${resp.status}`);
+    return resp;
+  };
+
+  // ── EXPORTAR UM MÓDULO ───────────────────────────────────
   const handleExport = async (mod) => {
     setExportLoading(p => ({ ...p, [mod.key]: true }));
     try {
@@ -70,25 +83,10 @@ export default function ImportExport() {
       if (mod.supportsDateFilter && exportDates.to)   params.append('date_to',   exportDates.to);
       params.append('format', exportFormat);
 
-      const url  = `${BASE_URL}/import-export/export/${mod.key}?${params}`;
-      const resp = await fetch(url, { headers: { Authorization: `Bearer ${token()}` } });
-
-      if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(`Servidor retornou ${resp.status}: ${text.slice(0, 200)}`);
-      }
-
-      const blob        = await resp.blob();
-      const disposition = resp.headers.get('Content-Disposition') || '';
-      const nameMatch   = disposition.match(/filename="(.+?)"/);
-      const ext         = exportFormat === 'xlsx' ? 'xlsx' : 'csv';
-      const filename    = nameMatch ? nameMatch[1] : `${mod.key}_export.${ext}`;
-
-      const link    = document.createElement('a');
-      link.href     = URL.createObjectURL(blob);
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(link.href);
+      const resp = await fetchExport(mod.key, params);
+      const blob = await resp.blob();
+      const ext  = exportFormat === 'xlsx' ? 'xlsx' : 'csv';
+      triggerDownload(blob, `${mod.key}_export.${ext}`);
 
       setExportSuccess(p => ({ ...p, [mod.key]: true }));
       setTimeout(() => setExportSuccess(p => ({ ...p, [mod.key]: false })), 3000);
@@ -99,6 +97,87 @@ export default function ImportExport() {
     }
   };
 
+  // ── EXPORTAR TUDO ────────────────────────────────────────
+  const handleExportAll = async () => {
+    setExportAllLoading(true);
+    setExportAllSuccess(false);
+    setExportAllProgress([]);
+
+    const params = new URLSearchParams();
+    if (exportDates.from) params.append('date_from', exportDates.from);
+    if (exportDates.to)   params.append('date_to',   exportDates.to);
+    params.append('format', exportFormat);
+
+    // Tenta usar JSZip se disponível; caso contrário baixa arquivos separados
+    let JSZip = null;
+    try {
+      const mod = await import('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+      JSZip = window.JSZip;
+    } catch (_) {}
+
+    const blobs   = [];
+    const failed  = [];
+    const progress = [];
+
+    for (const mod of MODULES) {
+      const p = new URLSearchParams(params);
+      if (!mod.supportsDateFilter) {
+        p.delete('date_from');
+        p.delete('date_to');
+      }
+      try {
+        const resp = await fetchExport(mod.key, p);
+        const blob = await resp.blob();
+        const ext  = exportFormat === 'xlsx' ? 'xlsx' : 'csv';
+        blobs.push({ name: `${mod.key}.${ext}`, blob, label: mod.label });
+        progress.push({ key: mod.key, label: mod.label, ok: true });
+      } catch (err) {
+        failed.push(mod.label);
+        progress.push({ key: mod.key, label: mod.label, ok: false });
+      }
+      setExportAllProgress([...progress]);
+    }
+
+    if (blobs.length === 0) {
+      alert('Nenhum módulo exportado com sucesso.');
+      setExportAllLoading(false);
+      return;
+    }
+
+    // Tenta gerar ZIP
+    if (JSZip && blobs.length > 1) {
+      try {
+        const zip  = new JSZip();
+        const folder = zip.folder('sv_finance_export');
+        for (const { name, blob } of blobs) {
+          folder.file(name, blob);
+        }
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const stamp   = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        triggerDownload(zipBlob, `sv_finance_completo_${stamp}.zip`);
+        setExportAllSuccess(true);
+        setTimeout(() => { setExportAllSuccess(false); setExportAllProgress([]); }, 5000);
+        setExportAllLoading(false);
+        return;
+      } catch (_) {}
+    }
+
+    // Fallback: baixa arquivos um por um com delay
+    for (const { name, blob } of blobs) {
+      triggerDownload(blob, name);
+      await new Promise(r => setTimeout(r, 400));
+    }
+
+    if (failed.length > 0) {
+      alert(`Exportados com sucesso: ${blobs.length}/${MODULES.length}\nFalhou: ${failed.join(', ')}`);
+    }
+
+    setExportAllSuccess(true);
+    setTimeout(() => { setExportAllSuccess(false); setExportAllProgress([]); }, 5000);
+    setExportAllLoading(false);
+  };
+
+  // ── TEMPLATE ─────────────────────────────────────────────
   const handleDownloadTemplate = async (modKey) => {
     try {
       const resp = await fetch(`${BASE_URL}/import-export/export/template/${modKey}`, {
@@ -106,11 +185,7 @@ export default function ImportExport() {
       });
       if (!resp.ok) throw new Error('Falha ao baixar template');
       const blob = await resp.blob();
-      const link = document.createElement('a');
-      link.href     = URL.createObjectURL(blob);
-      link.download = `template_${modKey}.csv`;
-      link.click();
-      URL.revokeObjectURL(link.href);
+      triggerDownload(blob, `template_${modKey}.csv`);
     } catch (err) {
       alert('Erro: ' + err.message);
     }
@@ -145,7 +220,16 @@ export default function ImportExport() {
     }
   };
 
-  // ── estilos de botão ─────────────────────────────────────
+  // ── helper download ──────────────────────────────────────
+  const triggerDownload = (blob, filename) => {
+    const link    = document.createElement('a');
+    link.href     = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  // ── estilos ──────────────────────────────────────────────
   const tabBtn = (active) => ({
     padding: '9px 26px', borderRadius: 10, border: 'none', cursor: 'pointer',
     fontWeight: 600, fontSize: 14, transition: 'all 0.2s',
@@ -156,7 +240,7 @@ export default function ImportExport() {
 
   const formatBtn = (active) => ({
     padding: '7px 18px', borderRadius: 8, cursor: 'pointer',
-    border:      `1px solid ${active ? '#6366f1' : cardBorder}`,
+    border:     `1px solid ${active ? '#6366f1' : cardBorder}`,
     background:  active ? 'rgba(99,102,241,0.18)' : 'transparent',
     color:       active ? '#818cf8' : textSub,
     fontWeight:  600, fontSize: 13, transition: 'all 0.2s',
@@ -248,7 +332,66 @@ export default function ImportExport() {
               )}
             </div>
 
-            {/* Grid módulos */}
+            {/* ── EXPORTAR TUDO ── */}
+            <div style={{
+              ...card,
+              background: isGlass ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)',
+              border: '1px solid rgba(99,102,241,0.35)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+                <div>
+                  <div style={{ color: textMain, fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>📦</span> Exportar Tudo
+                  </div>
+                  <div style={{ color: textSub, fontSize: 13, marginTop: 4 }}>
+                    Baixa todos os {MODULES.length} módulos de uma vez
+                    {exportFormat === 'csv' ? ' em arquivos CSV separados' : ' em arquivos Excel separados'}
+                    {(exportDates.from || exportDates.to) ? ` • período: ${exportDates.from || '...'} → ${exportDates.to || '...'}` : ''}
+                  </div>
+                </div>
+                <button
+                  onClick={handleExportAll}
+                  disabled={exportAllLoading}
+                  style={{
+                    padding: '11px 28px', borderRadius: 10, border: 'none',
+                    cursor: exportAllLoading ? 'not-allowed' : 'pointer',
+                    fontWeight: 700, fontSize: 14, transition: 'all 0.2s',
+                    background: exportAllSuccess
+                      ? 'linear-gradient(135deg,#16a34a,#15803d)'
+                      : 'linear-gradient(135deg,#6366f1,#4f46e5)',
+                    color: '#fff',
+                    opacity: exportAllLoading ? 0.8 : 1,
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 4px 16px rgba(99,102,241,0.3)',
+                  }}
+                >
+                  {exportAllLoading ? '⏳ Exportando...' : exportAllSuccess ? '✅ Concluído!' : '📦 Exportar Tudo'}
+                </button>
+              </div>
+
+              {/* Progress dos módulos durante exportação */}
+              {exportAllProgress.length > 0 && (
+                <div style={{ marginTop: 16, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {exportAllProgress.map(p => (
+                    <span key={p.key} style={{
+                      padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                      background: p.ok ? 'rgba(22,163,74,0.15)' : 'rgba(239,68,68,0.15)',
+                      color:      p.ok ? '#4ade80' : '#f87171',
+                      border:     `1px solid ${p.ok ? 'rgba(22,163,74,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                    }}>
+                      {p.ok ? '✅' : '❌'} {p.label}
+                    </span>
+                  ))}
+                  {exportAllLoading && exportAllProgress.length < MODULES.length && (
+                    <span style={{ padding: '4px 10px', borderRadius: 8, fontSize: 12, color: textSub, border: `1px solid ${cardBorder}` }}>
+                      ⏳ {MODULES[exportAllProgress.length]?.label}...
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Grid módulos individuais */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
               {MODULES.map(mod => (
                 <div key={mod.key} style={{ ...card, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -322,11 +465,11 @@ export default function ImportExport() {
                     onClick={() => setSelectedSystem(sys.key)}
                     style={{
                       padding: '8px 16px', borderRadius: 20, cursor: 'pointer', transition: 'all 0.2s',
-                      border:      `2px solid ${selectedSystem === sys.key ? sys.color : cardBorder}`,
+                      border:     `2px solid ${selectedSystem === sys.key ? sys.color : cardBorder}`,
                       background:  selectedSystem === sys.key ? `${sys.color}22` : 'transparent',
                       color:       selectedSystem === sys.key ? textMain : textSub,
                       fontWeight:  selectedSystem === sys.key ? 700 : 400,
-                      fontSize:    13, display: 'flex', alignItems: 'center', gap: 6,
+                      fontSize: 13, display: 'flex', alignItems: 'center', gap: 6,
                     }}
                   >
                     <span>{sys.icon}</span>
