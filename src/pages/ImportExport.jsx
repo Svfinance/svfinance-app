@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import PageLayout from '../components/layout/PageLayout';
 import Sidebar from '../components/layout/Sidebar';
 import { useTheme } from '../contexts/ThemeContext';
+import ProductReportModal from '../components/ProductReportModal';
 
 const BASE_URL = 'https://finance-control-api-production.up.railway.app/api';
 
@@ -170,6 +171,9 @@ export default function ImportExport() {
 
   const token = () => localStorage.getItem('token');
   const role  = localStorage.getItem('role') || 'viewer';
+
+  // Modal relatório de produtos
+  const [reportModal, setReportModal] = useState(false);
 
   // Módulos visíveis conforme role
   const visibleModules = MODULES.filter(m => !m.adminOnly || role === 'admin');
@@ -414,6 +418,47 @@ export default function ImportExport() {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* ── RELATÓRIOS ── */}
+            <div style={{ ...card, background: isGlass ? 'rgba(34,197,94,0.12)' : 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.3)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+                <div>
+                  <div style={{ color: textMain, fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    📊 Relatórios em PDF
+                  </div>
+                  <div style={{ color: textSub, fontSize: 13, marginTop: 4 }}>
+                    Gere relatórios formatados com filtros e impressão temática
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {(role === 'admin' || role === 'financial' || role === 'stock') && (
+                    <button
+                      onClick={() => setReportModal(true)}
+                      style={{ padding: '10px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 14, background: 'linear-gradient(135deg,#16a34a,#15803d)', color: '#fff', boxShadow: '0 4px 16px rgba(22,163,74,0.35)', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 8 }}
+                    >
+                      📦 Produtos & Estoque
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {[
+                  { icon: '📦', label: 'Produtos & Estoque', desc: 'Catálogo, margens, estoque e movimentações', action: () => setReportModal(true), roles: ['admin','financial','stock'] },
+                ].filter(r => r.roles.includes(role)).map((r, i) => (
+                  <div key={i} onClick={r.action} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderRadius: 10, border: '1px solid rgba(34,197,94,0.2)', background: isGlass ? 'rgba(255,255,255,0.2)' : 'rgba(34,197,94,0.06)', cursor: 'pointer', transition: 'all 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = isGlass ? 'rgba(255,255,255,0.3)' : 'rgba(34,197,94,0.12)'}
+                    onMouseLeave={e => e.currentTarget.style.background = isGlass ? 'rgba(255,255,255,0.2)' : 'rgba(34,197,94,0.06)'}
+                  >
+                    <span style={{ fontSize: 20 }}>{r.icon}</span>
+                    <div>
+                      <div style={{ color: textMain, fontWeight: 600, fontSize: 13 }}>{r.label}</div>
+                      <div style={{ color: textSub, fontSize: 11, marginTop: 1 }}>{r.desc}</div>
+                    </div>
+                    <span style={{ color: '#22c55e', marginLeft: 'auto', fontSize: 14 }}>→</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Grid módulos */}
@@ -698,6 +743,15 @@ export default function ImportExport() {
           </div>
         )}
       </div>
+
+      {/* MODAL RELATÓRIO DE PRODUTOS */}
+      {reportModal && (
+        <ProductReportModal
+          onClose={() => setReportModal(false)}
+          theme={theme}
+          isGlass={isGlass}
+        />
+      )}
     </PageLayout>
   );
 }
