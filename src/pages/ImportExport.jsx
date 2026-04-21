@@ -161,12 +161,15 @@ export default function ImportExport() {
   // ── Import state ──
   const [selectedSystem, setSelectedSystem] = useState('generico');
   const [uploadFile, setUploadFile]         = useState(null);
+  const [csvText, setCsvText]               = useState('');
   const [importModule, setImportModule]     = useState('transactions');
-  const [importPreview, setImportPreview]   = useState(null);   // { columns, preview_rows, detected_system }
-  const [importMapping, setImportMapping]   = useState({});     // { fieldKey: coluna }
-  const [importStep, setImportStep]         = useState('upload'); // upload | mapping | result
+  const [importPreview, setImportPreview]   = useState(null);
+  const [importMapping, setImportMapping]   = useState({});
+  const [importStep, setImportStep]         = useState('upload');
   const [importLoading, setImportLoading]   = useState(false);
   const [importResult, setImportResult]     = useState(null);
+  const [dupAction, setDupAction]           = useState('skip');  // skip | update | create_anyway
+  const [detectedSystem, setDetectedSystem] = useState(null);
   const fileRef = useRef();
 
   const token = () => localStorage.getItem('token');
@@ -254,23 +257,69 @@ export default function ImportExport() {
     } catch (err) { alert('Erro: ' + err.message); }
   };
 
-  // ── IMPORTAR: STEP 1 — PREVIEW ──
+  // ── lê arquivo → csv text ──
+  const readFileAsText = (file) => new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result);
+    r.onerror = rej;
+    r.readAsText(file, 'UTF-8');
+  });
+
+  // ── IMPORTAR: STEP 1 — PREVIEW + DETECÇÃO ──
   const handlePreview = async () => {
     if (!uploadFile) return;
     setImportLoading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', uploadFile);
-      const resp = await fetch(`${BASE_URL}/import-export/import/preview`, {
-        method: 'POST', headers: { Authorization: `Bearer ${token()}` }, body: formData,
+      const text = await readFileAsText(uploadFile);
+      setCsvText(text);
+
+      // 1. Detectar sistema automaticamente
+      const detRes = await fetch(`${BASE_URL}/import/detect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ csv_text: text }),
       });
-      if (!resp.ok) throw new Error(`Servidor retornou ${resp.status}`);
-      const data = await resp.json();
+      const detData = await detRes.json();
+      const detSys  = detData.sistema || 'generico';
+      const detEnt  = detData.entity  || importModule;
+      setDetectedSystem(detData);
+      if (detSys !== 'generico') {
+        setSelectedSystem(detSys);
+        setImportModule(detEnt);
+      }
+
+      // 2. Preview
+      const entity  = detSys !== 'generico' ? detEnt : importModule;
+      const sistema = detSys !== 'generico' ? detSys : selectedSystem;
+      const prevRes = await fetch(`${BASE_URL}/import/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ csv_text: text, entity, sistema, col_map: importMapping }),
+      });
+      if (!prevRes.ok) throw new Error(`Servidor retornou ${prevRes.status}`);
+      const data = await prevRes.json();
       setImportPreview(data);
-      // Build auto-mapping
-      const autoMap = buildAutoMapping(data.columns, importModule);
-      setImportMapping(autoMap);
+      if (data.headers?.length) {
+        const autoMap = buildAutoMapping(data.headers, entity);
+        setImportMapping(autoMap);
+      }
       setImportStep('mapping');
+    } catch (err) { alert('Erro: ' + err.message); }
+    finally { setImportLoading(false); }
+  };
+
+  // ── IMPORTAR: STEP 1b — REGENERAR PREVIEW ao mudar sistema/entidade ──
+  const handleRepreview = async () => {
+    if (!csvText) return;
+    setImportLoading(true);
+    try {
+      const res = await fetch(`${BASE_URL}/import/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ csv_text: csvText, entity: importModule, sistema: selectedSystem, col_map: importMapping }),
+      });
+      const data = await res.json();
+      setImportPreview(data);
     } catch (err) { alert('Erro: ' + err.message); }
     finally { setImportLoading(false); }
   };
@@ -279,14 +328,17 @@ export default function ImportExport() {
   const handleConfirmImport = async () => {
     setImportLoading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', uploadFile);
-      formData.append('mapping', JSON.stringify(importMapping));
-      const resp = await fetch(`${BASE_URL}/import-export/import/${importModule}`, {
-        method: 'POST', headers: { Authorization: `Bearer ${token()}` }, body: formData,
+      const res = await fetch(`${BASE_URL}/import/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({
+          csv_text: csvText, entity: importModule,
+          sistema: selectedSystem, col_map: importMapping,
+          duplicate_action: dupAction,
+        }),
       });
-      if (!resp.ok) throw new Error(`Servidor retornou ${resp.status}`);
-      const result = await resp.json();
+      if (!res.ok) throw new Error(`Servidor retornou ${res.status}`);
+      const result = await res.json();
       setImportResult(result);
       setImportStep('result');
     } catch (err) { alert('Erro na importação: ' + err.message); }
@@ -588,11 +640,53 @@ export default function ImportExport() {
                   </div>
                 </div>
 
+                {/* Banner detecção automática */}
+                {detectedSystem && detectedSystem.sistema !== 'generico' && (
+                  <div style={{ ...card, border:'1px solid rgba(34,197,94,0.3)', background:isGlass?'rgba(34,197,94,0.1)':'rgba(34,197,94,0.06)', padding:'14px 18px' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                      <span style={{ fontSize:20 }}>🎯</span>
+                      <div>
+                        <div style={{ color:'#4ade80', fontWeight:700, fontSize:14 }}>
+                          Sistema detectado automaticamente: <strong>
+                            {detectedSystem.sistema === 'conta_azul' ? 'Conta Azul' :
+                             detectedSystem.sistema === 'omie' ? 'Omie' : 'Nibo'}
+                          </strong>
+                        </div>
+                        <div style={{ color:textSub, fontSize:12, marginTop:2 }}>
+                          Confiança: {Math.round((detectedSystem.confidence||0)*100)}% · Entidade: {detectedSystem.entity}
+                          {' — '}campos mapeados automaticamente, sem necessidade de ajustes.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Ação de duplicatas */}
+                <div style={card}>
+                  <h3 style={{ color:textMain, margin:'0 0 8px', fontSize:15, fontWeight:600 }}>🔁 Duplicatas</h3>
+                  <p style={{ color:textSub, fontSize:13, margin:'0 0 14px' }}>O que fazer quando o registro já existir no sistema?</p>
+                  <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                    {[
+                      { v:'skip',          label:'⏭️ Ignorar',          desc:'Mantém o registro existente'    },
+                      { v:'update',        label:'✏️ Atualizar',         desc:'Atualiza dados do existente'    },
+                      { v:'create_anyway', label:'➕ Criar mesmo assim', desc:'Cria um registro duplicado'     },
+                    ].map(opt => (
+                      <div key={opt.v} onClick={() => setDupAction(opt.v)}
+                        style={{ flex:1, minWidth:140, padding:'12px 14px', borderRadius:10, cursor:'pointer', border:`2px solid ${dupAction===opt.v?theme.primary:cardBorder}`, background:dupAction===opt.v?`${theme.primary}18`:'transparent', transition:'all 0.2s' }}>
+                        <div style={{ fontWeight:700, fontSize:13, color:dupAction===opt.v?theme.primary:textMain, marginBottom:3 }}>{opt.label}</div>
+                        <div style={{ fontSize:11, color:textSub }}>{opt.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Mapeamento de colunas */}
                 <div style={card}>
                   <h3 style={{ color:textMain, margin:'0 0 8px', fontSize:15, fontWeight:600 }}>🗂️ Mapeamento de Colunas</h3>
                   <p style={{ color:textSub, fontSize:13, margin:'0 0 20px' }}>
-                    Campos com ✅ foram mapeados automaticamente. Ajuste os que ficaram em branco ou estiverem incorretos.
+                    {selectedSystem !== 'generico'
+                      ? `Mapeamento automático do ${selectedSystem === 'conta_azul' ? 'Conta Azul' : selectedSystem === 'omie' ? 'Omie' : 'Nibo'} aplicado. Confira e ajuste se necessário.`
+                      : 'Campos com ✅ foram mapeados automaticamente. Ajuste os que ficaram em branco.'}
                   </p>
 
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(320px, 1fr))', gap:12 }}>
@@ -644,10 +738,10 @@ export default function ImportExport() {
                 {/* Cards resumo */}
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:12 }}>
                   {[
-                    { label:'Importados',  value:importResult.imported, color:'#4ade80', bg:'rgba(22,163,74,0.12)',  icon:'✅' },
-                    { label:'Atualizados', value:importResult.updated,  color:'#60a5fa', bg:'rgba(37,99,235,0.12)',  icon:'🔄' },
-                    { label:'Ignorados',   value:importResult.skipped,  color:'#f59e0b', bg:'rgba(245,158,11,0.12)', icon:'⚠️' },
-                    { label:'Erros',       value:importResult.errors?.length||0, color:'#f87171', bg:'rgba(239,68,68,0.12)', icon:'❌' },
+                    { label:'Criados',     value:importResult.created,          color:'#4ade80', bg:'rgba(22,163,74,0.12)',  icon:'✅' },
+                    { label:'Atualizados', value:importResult.updated,          color:'#60a5fa', bg:'rgba(37,99,235,0.12)',  icon:'🔄' },
+                    { label:'Ignorados',   value:importResult.skipped,          color:'#f59e0b', bg:'rgba(245,158,11,0.12)', icon:'⏭️' },
+                    { label:'Erros',       value:importResult.errors?.length||0,color:'#f87171', bg:'rgba(239,68,68,0.12)', icon:'❌' },
                   ].map(s => (
                     <div key={s.label} style={{ ...card, textAlign:'center', padding:'20px 16px' }}>
                       <div style={{ fontSize:28, marginBottom:6 }}>{s.icon}</div>
