@@ -15,6 +15,7 @@ import Goals        from "./pages/Goals";
 import ImportExport from "./pages/ImportExport";
 import DRE          from "./pages/DRE";
 import CashFlow     from "./pages/CashFlow";
+import BillsReport  from "./pages/BillsReport";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
@@ -57,6 +58,11 @@ function App() {
           <Route path="/cashflow" element={
             <ProtectedRoute roles={["admin", "financial"]}>
               <CashFlow />
+            </ProtectedRoute>
+          } />
+          <Route path="/bills-report" element={
+            <ProtectedRoute roles={["admin", "financial"]}>
+              <BillsReport />
             </ProtectedRoute>
           } />
           <Route path="/team" element={

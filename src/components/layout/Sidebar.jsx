@@ -31,6 +31,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
     { to: "/analytics",    icon: "📊", label: "Analytics",           roles: ["admin", "financial"] },
     { to: "/dre",           icon: "📋", label: "DRE",                 roles: ["admin", "financial"] },
     { to: "/cashflow",      icon: "💵", label: "Fluxo de Caixa",       roles: ["admin", "financial"] },
+    { to: "/bills-report",  icon: "📑", label: "Rel. Contas",            roles: ["admin", "financial"] },
     { to: "/products",      icon: "📦", label: "Produtos",            roles: ["admin", "financial", "stock", "seller"] },
     { to: "/quotes",        icon: "🧾", label: "Orçamentos",          roles: null },
     { to: "/sales",         icon: "🛒", label: "Vendas",              roles: null },
