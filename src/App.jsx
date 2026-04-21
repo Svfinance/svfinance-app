@@ -13,9 +13,7 @@ import Sales        from "./pages/Sales";
 import Team         from "./pages/Team";
 import Goals        from "./pages/Goals";
 import ImportExport from "./pages/ImportExport";
-import DRE          from "./pages/DRE";
-import CashFlow     from "./pages/CashFlow";
-import BillsReport  from "./pages/BillsReport";
+import Reports      from "./pages/Reports";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
@@ -50,19 +48,9 @@ function App() {
               <Analytics />
             </ProtectedRoute>
           } />
-          <Route path="/dre" element={
+          <Route path="/reports" element={
             <ProtectedRoute roles={["admin", "financial"]}>
-              <DRE />
-            </ProtectedRoute>
-          } />
-          <Route path="/cashflow" element={
-            <ProtectedRoute roles={["admin", "financial"]}>
-              <CashFlow />
-            </ProtectedRoute>
-          } />
-          <Route path="/bills-report" element={
-            <ProtectedRoute roles={["admin", "financial"]}>
-              <BillsReport />
+              <Reports />
             </ProtectedRoute>
           } />
           <Route path="/team" element={
