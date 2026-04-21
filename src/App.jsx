@@ -54,6 +54,11 @@ function App() {
               <DRE />
             </ProtectedRoute>
           } />
+          <Route path="/cashflow" element={
+            <ProtectedRoute roles={["admin", "financial"]}>
+              <CashFlow />
+            </ProtectedRoute>
+          } />
           <Route path="/team" element={
             <ProtectedRoute roles={["admin"]}>
               <Team />
