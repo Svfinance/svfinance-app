@@ -3,6 +3,7 @@ import worldMap from "../../assets/world-map.svg";
 import fundoGlassEGelo  from "../../assets/fundoglassegelo.jpg";
 import fundoCinzaPrata  from "../../assets/fundocinzaprata.jpg";
 import { useState, useEffect, useRef } from "react";
+import { getSidebarStyle } from "./Sidebar";
 
 const BG_IMAGES = {
   glass: fundoGlassEGelo,
@@ -11,9 +12,6 @@ const BG_IMAGES = {
 
 const API = "https://finance-control-api-production.up.railway.app/api";
 
-// ══════════════════════════════
-// HOOK — busca todos os alertas
-// ══════════════════════════════
 function useAlerts() {
   const [alerts, setAlerts] = useState([]);
 
@@ -42,106 +40,73 @@ function useAlerts() {
         const today   = new Date(); today.setHours(0,0,0,0);
         const in7days = new Date(today); in7days.setDate(today.getDate() + 7);
 
-        // ── 1. Contas vencidas ──
         const vencidas = bills.filter(b => {
           if (b.status === "paid") return false;
           return new Date(b.due_date + "T00:00:00") < today;
         });
         if (vencidas.length > 0) {
-          found.push({
-            id:    "overdue",
-            type:  "error",
-            icon:  "🔴",
-            title: `${vencidas.length} conta${vencidas.length>1?"s":""} vencida${vencidas.length>1?"s":""}`,
-            desc:  `Total: ${vencidas.reduce((s,b)=>s+b.amount,0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
-            link:  "/bills",
-          });
+          found.push({ id:"overdue", type:"error", icon:"🔴",
+            title:`${vencidas.length} conta${vencidas.length>1?"s":""} vencida${vencidas.length>1?"s":""}`,
+            desc:`Total: ${vencidas.reduce((s,b)=>s+b.amount,0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
+            link:"/bills" });
         }
 
-        // ── 2. Contas vencendo em 7 dias ──
         const upcoming = bills.filter(b => {
           if (b.status === "paid") return false;
           const due = new Date(b.due_date + "T00:00:00");
           return due >= today && due <= in7days;
         });
         if (upcoming.length > 0) {
-          found.push({
-            id:    "upcoming",
-            type:  "warning",
-            icon:  "⏰",
-            title: `${upcoming.length} conta${upcoming.length>1?"s":""} vencendo em 7 dias`,
-            desc:  `Total: ${upcoming.reduce((s,b)=>s+b.amount,0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
-            link:  "/bills",
-          });
+          found.push({ id:"upcoming", type:"warning", icon:"⏰",
+            title:`${upcoming.length} conta${upcoming.length>1?"s":""} vencendo em 7 dias`,
+            desc:`Total: ${upcoming.reduce((s,b)=>s+b.amount,0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
+            link:"/bills" });
         }
 
-        // ── 3. Saldo baixo (menos de R$200 no mês atual) ──
         const currentMonth = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}`;
         const monthT = Array.isArray(transactions) ? transactions.filter(t => t.date?.startsWith(currentMonth)) : [];
         const income  = monthT.filter(t=>t.type==="income").reduce((s,t)=>s+t.amount,0);
         const expense = monthT.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0);
         const balance = income - expense;
         if (balance < 200 && monthT.length > 0) {
-          found.push({
-            id:    "low_balance",
-            type:  "warning",
-            icon:  "💸",
-            title: "Saldo do mês está baixo",
-            desc:  `Saldo atual: ${balance.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
-            link:  "/transactions",
-          });
+          found.push({ id:"low_balance", type:"warning", icon:"💸",
+            title:"Saldo do mês está baixo",
+            desc:`Saldo atual: ${balance.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
+            link:"/transactions" });
         }
 
-        // ── 4. Gastos maiores que mês anterior por categoria ──
         const prevMonth = today.getMonth() === 0
           ? `${today.getFullYear()-1}-12`
           : `${today.getFullYear()}-${String(today.getMonth()).padStart(2,"0")}`;
-
         const prevT   = Array.isArray(transactions) ? transactions.filter(t => t.date?.startsWith(prevMonth)) : [];
         const catCurr = {}, catPrev = {};
         monthT.filter(t=>t.type==="expense").forEach(t => { const c=t.category||"Outros"; catCurr[c]=(catCurr[c]||0)+t.amount; });
         prevT.filter(t=>t.type==="expense").forEach(t => { const c=t.category||"Outros"; catPrev[c]=(catPrev[c]||0)+t.amount; });
-
         Object.entries(catCurr).forEach(([cat, val]) => {
           const prev = catPrev[cat] || 0;
           if (prev > 0 && val > prev * 1.3) {
-            found.push({
-              id:    `cat_${cat}`,
-              type:  "info",
-              icon:  "📊",
-              title: `Gastos com ${cat} aumentaram`,
-              desc:  `${Math.round((val/prev-1)*100)}% a mais que o mês anterior`,
-              link:  "/analytics",
-            });
+            found.push({ id:`cat_${cat}`, type:"info", icon:"📊",
+              title:`Gastos com ${cat} aumentaram`,
+              desc:`${Math.round((val/prev-1)*100)}% a mais que o mês anterior`,
+              link:"/analytics" });
           }
         });
 
-        // ── 5. Metas próximas de concluir (>= 80%) ──
         if (Array.isArray(goals)) {
           goals.filter(g => g.status==="active" && g.progress >= 80 && g.progress < 100).forEach(g => {
-            found.push({
-              id:    `goal_${g.id}`,
-              type:  "success",
-              icon:  "🎯",
-              title: `Meta "${g.name}" quase lá!`,
-              desc:  `${g.progress}% concluída — faltam ${g.remaining.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
-              link:  "/goals",
-            });
+            found.push({ id:`goal_${g.id}`, type:"success", icon:"🎯",
+              title:`Meta "${g.name}" quase lá!`,
+              desc:`${g.progress}% concluída — faltam ${g.remaining.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}`,
+              link:"/goals" });
           });
-
-          // ── 6. Metas com prazo vencendo em 30 dias ──
           goals.filter(g => g.status==="active" && g.deadline).forEach(g => {
             const due  = new Date(g.deadline + "T00:00:00");
             const days = Math.round((due - today) / (1000*60*60*24));
             if (days >= 0 && days <= 30 && g.progress < 100) {
-              found.push({
-                id:    `goal_deadline_${g.id}`,
-                type:  "warning",
-                icon:  "⏳",
-                title: `Prazo da meta "${g.name}" se aproxima`,
-                desc:  `${days} dia${days!==1?"s":""} restante${days!==1?"s":""}`,
-                link:  "/goals",
-              });
+              found.push({ id:`goal_deadline_${g.id}`, type:"warning", icon:"⏳",
+                title:`Prazo da meta "${g.name}" se aproxima`,
+                desc:`${days} dia${days!==1?"s":""} restante${days!==1?"s":""}`,
+                link:"/goals" });
             }
           });
         }
@@ -151,7 +116,6 @@ function useAlerts() {
     }
 
     load();
-    // atualiza a cada 5 minutos
     const interval = setInterval(load, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
@@ -159,14 +123,10 @@ function useAlerts() {
   return alerts;
 }
 
-// ══════════════════════════════
-// COMPONENTE SINO
-// ══════════════════════════════
 function NotificationBell({ alerts, theme, isGlass }) {
   const [open, setOpen] = useState(false);
   const ref             = useRef(null);
 
-  // fecha ao clicar fora
   useEffect(() => {
     function handleClick(e) {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
@@ -183,8 +143,7 @@ function NotificationBell({ alerts, theme, isGlass }) {
   };
 
   return (
-    <div ref={ref} style={{ position:"fixed", top:14, right:16, zIndex:300 }}>
-      {/* BOTÃO SINO */}
+    <div ref={ref} style={{ position:"fixed", top:14, right:16, zIndex:400 }}>
       <button
         onClick={() => setOpen(!open)}
         style={{
@@ -210,28 +169,24 @@ function NotificationBell({ alerts, theme, isGlass }) {
             fontSize:10, fontWeight:700,
             display:"flex", alignItems:"center", justifyContent:"center",
             border:"2px solid transparent",
-            animation: "pulse 2s infinite",
+            animation:"pulse 2s infinite",
           }}>
             {alerts.length > 9 ? "9+" : alerts.length}
           </div>
         )}
       </button>
 
-      {/* DROPDOWN */}
       {open && (
         <div style={{
-          position:"absolute", top:52, right:0,
-          width: 340,
+          position:"absolute", top:52, right:0, width:340,
           background: isGlass ? "rgba(255,255,255,0.75)" : "rgba(15,23,42,0.95)",
           backdropFilter:"blur(20px) saturate(180%)", WebkitBackdropFilter:"blur(20px) saturate(180%)",
           border:`1px solid ${isGlass?"rgba(255,255,255,0.6)":"rgba(255,255,255,0.1)"}`,
           borderRadius:16,
           boxShadow: isGlass?"0 20px 60px rgba(0,0,0,0.15)":"0 20px 60px rgba(0,0,0,0.6)",
-          overflow:"hidden",
-          maxHeight:480,
+          overflow:"hidden", maxHeight:480,
           display:"flex", flexDirection:"column",
         }}>
-          {/* header */}
           <div style={{ padding:"16px 18px 12px", borderBottom:`1px solid ${isGlass?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.08)"}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
               <div style={{ fontWeight:700, fontSize:15, color:isGlass?"#0f172a":theme.textPrimary }}>Notificações</div>
@@ -242,7 +197,6 @@ function NotificationBell({ alerts, theme, isGlass }) {
             <button onClick={() => setOpen(false)} style={{ background:"transparent", border:"none", color:isGlass?"#64748b":theme.textMuted, cursor:"pointer", fontSize:16, padding:4 }}>✕</button>
           </div>
 
-          {/* lista */}
           <div style={{ overflowY:"auto", flex:1 }}>
             {alerts.length === 0 ? (
               <div style={{ padding:"32px 18px", textAlign:"center" }}>
@@ -251,7 +205,7 @@ function NotificationBell({ alerts, theme, isGlass }) {
                 <div style={{ color:isGlass?"#94a3b8":theme.textMuted, fontSize:12, marginTop:4 }}>Suas finanças estão em dia!</div>
               </div>
             ) : (
-              alerts.map((a, i) => {
+              alerts.map((a) => {
                 const c = colorMap[a.type] || colorMap.info;
                 return (
                   <a key={a.id} href={a.link} onClick={() => setOpen(false)}
@@ -259,7 +213,6 @@ function NotificationBell({ alerts, theme, isGlass }) {
                     onMouseEnter={e => e.currentTarget.style.background = isGlass?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.05)"}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                   >
-                    {/* ícone colorido */}
                     <div style={{ width:36, height:36, borderRadius:10, background:c.bg, border:`1px solid ${c.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"1.1rem", flexShrink:0 }}>
                       {a.icon}
                     </div>
@@ -274,7 +227,6 @@ function NotificationBell({ alerts, theme, isGlass }) {
             )}
           </div>
 
-          {/* footer */}
           {alerts.length > 0 && (
             <div style={{ padding:"10px 18px", borderTop:`1px solid ${isGlass?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.08)"}`, textAlign:"center" }}>
               <div style={{ fontSize:11, color:isGlass?"#94a3b8":theme.textMuted }}>Atualizado automaticamente a cada 5 min</div>
@@ -293,9 +245,6 @@ function NotificationBell({ alerts, theme, isGlass }) {
   );
 }
 
-// ══════════════════════════════
-// PAGE LAYOUT PRINCIPAL
-// ══════════════════════════════
 export default function PageLayout({ children, style }) {
   const { theme, themeId } = useTheme();
   const alerts = useAlerts();
@@ -303,6 +252,17 @@ export default function PageLayout({ children, style }) {
   const bgImage    = BG_IMAGES[themeId] || null;
   const isImgTheme = !!bgImage;
   const isGlass    = themeId === "glass" || themeId === "gray";
+
+  // ── Detectar sidebar horizontal para aplicar paddingTop no conteúdo ──
+  const [sidebarStyle, setSidebarStyle] = useState(getSidebarStyle());
+  const isHorizontal = sidebarStyle === "horizontal";
+  const TOPBAR_H = 54;
+
+  useEffect(() => {
+    const fn = () => setSidebarStyle(getSidebarStyle());
+    window.addEventListener("sv_sidebar_style_changed", fn);
+    return () => window.removeEventListener("sv_sidebar_style_changed", fn);
+  }, []);
 
   return (
     <div style={{
@@ -317,6 +277,9 @@ export default function PageLayout({ children, style }) {
       color:theme.textPrimary,
       fontFamily:"'Inter','Segoe UI',sans-serif",
       position:"relative",
+      // Quando horizontal: empurra todo o conteúdo para baixo da barra
+      paddingTop: isHorizontal ? TOPBAR_H : 0,
+      flexDirection: isHorizontal ? "column" : "row",
       ...style,
     }}>
 
@@ -329,12 +292,9 @@ export default function PageLayout({ children, style }) {
           color: ${isGlass ? "#0a0f1a" : "#ffffff"} !important;
           background-color: ${isGlass ? "#e8f0f8" : "#1e293b"} !important;
         }
-        input, textarea {
-          color: ${theme.textPrimary} !important;
-        }
+        input, textarea { color: ${theme.textPrimary} !important; }
         input::placeholder, textarea::placeholder {
-          color: ${theme.textMuted} !important;
-          opacity: 1;
+          color: ${theme.textMuted} !important; opacity: 1;
         }
         ::-webkit-scrollbar { width:6px; height:6px; }
         ::-webkit-scrollbar-track { background:transparent; }
@@ -357,9 +317,7 @@ export default function PageLayout({ children, style }) {
           color: ${isGlass?"#0f172a":theme.textPrimary} !important;
           font-weight: 600 !important;
         }
-        select option:hover,
-        select option:focus,
-        select option:checked {
+        select option:hover, select option:focus, select option:checked {
           background: ${isGlass?"#dbeafe":"#1e40af"} !important;
           color: ${isGlass?"#1e3a8a":"#ffffff"} !important;
         }
@@ -373,7 +331,6 @@ export default function PageLayout({ children, style }) {
         <div style={{ position:"fixed", inset:0, backgroundImage:`url(${worldMap})`, backgroundRepeat:"no-repeat", backgroundPosition:"center", backgroundSize:"1100px", opacity:theme.mapOpacity, pointerEvents:"none", zIndex:0 }} />
       )}
 
-      {/* ✅ SINO DE NOTIFICAÇÕES GLOBAL */}
       <NotificationBell alerts={alerts} theme={theme} isGlass={isGlass} />
 
       {children}
