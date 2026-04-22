@@ -378,140 +378,93 @@ export default function Settings() {
         {/* ══ SEÇÃO TEMAS ══ */}
         {activeSection === "temas" && (
           <>
-            {/* Seletor de estilo do sidebar */}
+            {/* Estilo do Sidebar */}
             <div style={card}>
               <h2 style={{ fontSize:"1rem", fontWeight:700, margin:"0 0 6px", color:theme.textPrimary }}>🗂️ Estilo do Sidebar</h2>
-              <p style={{ color:theme.textMuted, fontSize:"0.82rem", margin:"0 0 24px" }}>Escolha como o menu de navegação é exibido. A preferência é salva automaticamente.</p>
-
+              <p style={{ color:theme.textMuted, fontSize:"0.82rem", margin:"0 0 24px" }}>Escolha como o menu de navegação é exibido. Salvo automaticamente.</p>
               <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)", gap:16 }}>
                 {[
-                  {
-                    id:"vertical",
-                    icon:"▐",
-                    name:"Vertical",
-                    desc:"Sidebar lateral retrátil que expande ao passar o mouse",
-                    preview:(
-                      <div style={{ display:"flex", gap:6, height:60, alignItems:"stretch" }}>
-                        <div style={{ width:10, background:theme.primary, borderRadius:4, opacity:0.8 }}/>
-                        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:4, justifyContent:"center" }}>
-                          {[1,2,3].map(i=><div key={i} style={{ height:6, background:isGlass?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.08)", borderRadius:3 }}/>)}
-                        </div>
-                      </div>
-                    ),
-                  },
-                  {
-                    id:"horizontal",
-                    icon:"▬",
-                    name:"Horizontal",
-                    desc:"Barra de navegação fixada no topo da página",
-                    preview:(
-                      <div style={{ display:"flex", flexDirection:"column", gap:6, height:60 }}>
-                        <div style={{ height:10, background:theme.primary, borderRadius:4, opacity:0.8, width:"100%" }}/>
-                        <div style={{ flex:1, display:"flex", gap:4, alignItems:"center" }}>
-                          {[1,2,3,4].map(i=><div key={i} style={{ height:6, flex:1, background:isGlass?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.08)", borderRadius:3 }}/>)}
-                        </div>
-                      </div>
-                    ),
-                  },
-                  {
-                    id:"dock",
-                    icon:"⬤",
-                    name:"Dock",
-                    desc:"Bolinhas flutuantes na lateral — hover revela o nome",
-                    preview:(
-                      <div style={{ display:"flex", gap:8, height:60, alignItems:"center" }}>
-                        <div style={{ display:"flex", flexDirection:"column", gap:5, alignItems:"center" }}>
-                          {[1,2,3,4].map(i=>(
-                            <div key={i} style={{ width:i===2?18:14, height:i===2?18:14, borderRadius:"50%",
-                              background:i===2?theme.primary:isGlass?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.1)",
-                              border:`1px solid ${i===2?theme.primary:"rgba(255,255,255,0.15)"}` }}/>
-                          ))}
-                        </div>
-                        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:6 }}>
-                          {[1,2].map(i=><div key={i} style={{ height:6, background:isGlass?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.06)", borderRadius:3 }}/>)}
-                        </div>
-                      </div>
-                    ),
-                  },
+                  { id:"vertical",   name:"Vertical",   desc:"Sidebar lateral retrátil que expande ao passar o mouse" },
+                  { id:"horizontal", name:"Horizontal", desc:"Barra de navegação fixada no topo da página" },
+                  { id:"dock",       name:"Dock",       desc:"Bolinhas flutuantes na lateral — hover revela o nome" },
                 ].map(s => {
-                  const isActive = sidebarStyle === s.id;
+                  const isAct = sidebarStyle === s.id;
                   return (
                     <div key={s.id} onClick={() => handleSidebarStyle(s.id)}
-                      style={{ borderRadius:16, padding:20, cursor:"pointer", transition:"all 0.2s",
-                        background:isActive?(isGlass?"rgba(255,255,255,0.3)":`${theme.primary}18`):(isGlass?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.03)"),
-                        border:`2px solid ${isActive?theme.primary:isGlass?"rgba(255,255,255,0.3)":theme.borderCard}`,
-                        boxShadow:isActive?`0 0 20px ${theme.primary}33`:"none",
-                        position:"relative" }}>
-                      {isActive && (
+                      style={{ borderRadius:16, padding:20, cursor:"pointer", transition:"all 0.2s", position:"relative",
+                        background:isAct?(isGlass?"rgba(255,255,255,0.3)":`${theme.primary}18`):(isGlass?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.03)"),
+                        border:`2px solid ${isAct?theme.primary:isGlass?"rgba(255,255,255,0.3)":theme.borderCard}`,
+                        boxShadow:isAct?`0 0 20px ${theme.primary}33`:"none" }}>
+                      {isAct && (
                         <div style={{ position:"absolute", top:10, right:10, background:theme.primaryGrad,
                           color:"#fff", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20 }}>ATIVO</div>
                       )}
-                      {/* Preview visual */}
-                      <div style={{ background:isGlass?"rgba(255,255,255,0.15)":"rgba(0,0,0,0.2)",
-                        borderRadius:10, padding:12, marginBottom:14, border:`1px solid ${isGlass?"rgba(255,255,255,0.2)":theme.border}` }}>
-                        {s.preview}
+                      <div style={{ fontSize:"2rem", marginBottom:10 }}>
+                        {s.id==="vertical"?"▐":s.id==="horizontal"?"▬":"⬤"}
                       </div>
-                      <div style={{ fontWeight:700, fontSize:"0.95rem", color:isActive?theme.primary:theme.textPrimary, marginBottom:4 }}>{s.name}</div>
-                      <div style={{ fontSize:"0.75rem", color:theme.textMuted, lineHeight:1.4 }}>{s.desc}</div>
-                      <button onClick={e=>{e.stopPropagation();handleSidebarStyle(s.id);}}
-                        style={{ marginTop:14, width:"100%", padding:"8px", borderRadius:10, border:"none",
-                          cursor:"pointer", fontWeight:600, fontSize:"0.82rem",
-                          background:isActive?theme.primaryGrad:`${theme.primary}22`,
-                          color:isActive?"#fff":theme.primary, transition:"all 0.2s" }}>
-                        {isActive?"✓ Ativo":"Aplicar"}
+                      <div style={{ fontWeight:700, fontSize:"0.92rem", color:isAct?theme.primary:theme.textPrimary, marginBottom:4 }}>{s.name}</div>
+                      <div style={{ fontSize:"0.75rem", color:theme.textMuted, lineHeight:1.4, marginBottom:12 }}>{s.desc}</div>
+                      <button onClick={e => { e.stopPropagation(); handleSidebarStyle(s.id); }}
+                        style={{ width:"100%", padding:"8px", borderRadius:10, border:"none", cursor:"pointer",
+                          fontWeight:600, fontSize:"0.82rem", transition:"all 0.2s",
+                          background:isAct?theme.primaryGrad:`${theme.primary}22`,
+                          color:isAct?"#fff":theme.primary }}>
+                        {isAct ? "✓ Ativo" : "Aplicar"}
                       </button>
                     </div>
                   );
                 })}
               </div>
             </div>
-            <p style={{ color:theme.textMuted, fontSize:"0.82rem", margin:"0 0 28px" }}>Salvo automaticamente e aplicado em todas as páginas.</p>
 
-            <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:16 }}>
-              {Object.values(themes).map(t => {
-                const isActive   = themeId === t.id;
-                const isThisGlass = t.id === "glass" || t.id === "gray";
-                return (
-                  <div key={t.id} className="theme-card" onClick={() => handleChangeTheme(t.id)} style={{
-                    background: isThisGlass
-                      ? "linear-gradient(135deg,rgba(200,215,235,0.6),rgba(220,230,245,0.4))"
-                      : t.bgCard,
-                    border: isActive ? `2px solid ${t.primary}` : isThisGlass ? "1px solid rgba(255,255,255,0.6)" : `1px solid ${t.borderCard}`,
-                    boxShadow: isActive ? `0 0 24px ${t.primary}33,0 8px 32px rgba(0,0,0,0.3)` : "0 8px 24px rgba(0,0,0,0.2)",
-                    ...(isThisGlass && { backdropFilter:"blur(8px)" }),
-                  }}>
-                    {isActive && (
-                      <div style={{ position:"absolute", top:10, right:10, background:t.primaryGrad, color:"#fff", fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:20 }}>ATIVO</div>
-                    )}
-                    <div style={{ fontSize:"1.8rem", marginBottom:8 }}>{t.emoji}</div>
-                    <div style={{ fontWeight:700, fontSize:"0.9rem", color:isActive?t.primary:(isThisGlass?"#1e2d4a":"#e2e8f0"), marginBottom:4 }}>{t.name}</div>
-                    <div style={{ fontSize:"0.72rem", color:isThisGlass?"#4a607d":"#64748b", marginBottom:14 }}>{t.description}</div>
-                    <div style={{ display:"flex", gap:6, marginBottom:14 }}>
-                      {[t.primary, t.accent, t.income, t.expense].map((c,i) => (
-                        <div key={i} style={{ width:24, height:24, borderRadius:"50%", background:c }}/>
-                      ))}
-                    </div>
-                    <button onClick={e => { e.stopPropagation(); handleChangeTheme(t.id); }} style={{
-                      width:"100%", padding:"8px", borderRadius:10, border:"none", cursor:"pointer", fontWeight:600, fontSize:"0.8rem",
-                      background: isActive ? t.primaryGrad : isThisGlass ? "rgba(255,255,255,0.4)" : `${t.primary}22`,
-                      color: isActive ? "#fff" : (isThisGlass ? "#1d4ed8" : t.primary),
+            {/* Tema de cores */}
+            <div style={card}>
+              <h2 style={{ fontSize:"1rem", fontWeight:700, margin:"0 0 6px", color:theme.textPrimary }}>🎨 Tema do Sistema</h2>
+              <p style={{ color:theme.textMuted, fontSize:"0.82rem", margin:"0 0 28px" }}>Salvo automaticamente e aplicado em todas as páginas.</p>
+              <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:16 }}>
+                {Object.values(themes).map(t => {
+                  const isActive    = themeId === t.id;
+                  const isThisGlass = t.id === "glass" || t.id === "gray";
+                  return (
+                    <div key={t.id} className="theme-card" onClick={() => handleChangeTheme(t.id)} style={{
+                      background: isThisGlass ? "linear-gradient(135deg,rgba(200,215,235,0.6),rgba(220,230,245,0.4))" : t.bgCard,
+                      border: isActive ? `2px solid ${t.primary}` : isThisGlass ? "1px solid rgba(255,255,255,0.6)" : `1px solid ${t.borderCard}`,
+                      boxShadow: isActive ? `0 0 24px ${t.primary}33,0 8px 32px rgba(0,0,0,0.3)` : "0 8px 24px rgba(0,0,0,0.2)",
+                      ...(isThisGlass && { backdropFilter:"blur(8px)" }),
                     }}>
-                      {isActive ? "✓ Ativo" : "Aplicar"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-
-            {themeSaved && (
-              <div style={{ marginTop:20, background:`${theme.income}22`, border:`1px solid ${theme.income}44`, borderRadius:12, padding:"12px 18px", color:theme.income, fontWeight:600, fontSize:"0.88rem" }}>
-                ✅ Tema aplicado com sucesso!
+                      {isActive && (
+                        <div style={{ position:"absolute", top:10, right:10, background:t.primaryGrad,
+                          color:"#fff", fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:20 }}>ATIVO</div>
+                      )}
+                      <div style={{ fontSize:"1.8rem", marginBottom:8 }}>{t.emoji}</div>
+                      <div style={{ fontWeight:700, fontSize:"0.9rem", color:isActive?t.primary:(isThisGlass?"#1e2d4a":"#e2e8f0"), marginBottom:4 }}>{t.name}</div>
+                      <div style={{ fontSize:"0.72rem", color:isThisGlass?"#4a607d":"#64748b", marginBottom:14 }}>{t.description}</div>
+                      <div style={{ display:"flex", gap:6, marginBottom:14 }}>
+                        {[t.primary,t.accent,t.income,t.expense].map((c,i) => (
+                          <div key={i} style={{ width:24, height:24, borderRadius:"50%", background:c }}/>
+                        ))}
+                      </div>
+                      <button onClick={e => { e.stopPropagation(); handleChangeTheme(t.id); }} style={{
+                        width:"100%", padding:"8px", borderRadius:10, border:"none", cursor:"pointer",
+                        fontWeight:600, fontSize:"0.8rem",
+                        background: isActive ? t.primaryGrad : isThisGlass ? "rgba(255,255,255,0.4)" : `${t.primary}22`,
+                        color: isActive ? "#fff" : (isThisGlass ? "#1d4ed8" : t.primary),
+                      }}>
+                        {isActive ? "✓ Ativo" : "Aplicar"}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-            )}
-          </div>
+              {themeSaved && (
+                <div style={{ marginTop:20, background:`${theme.income}22`, border:`1px solid ${theme.income}44`,
+                  borderRadius:12, padding:"12px 18px", color:theme.income, fontWeight:600, fontSize:"0.88rem" }}>
+                  ✅ Tema aplicado com sucesso!
+                </div>
+              )}
+            </div>
           </>
         )}
-      </div>
 
       {/* TOAST */}
       {toast && (
