@@ -118,7 +118,7 @@ function DropdownPortal({ items, anchorIdx, theme, isGlass, border, isActive, on
   if (!pos) return null;
 
   return (
-    <div ref={ref} style={{
+    <div ref={ref} className="sv-dropdown" style={{
       position:"fixed",
       top: pos.top, left: pos.left,
       zIndex:9999,
@@ -183,6 +183,17 @@ function SidebarHorizontal({ menuItems, theme, isGlass }) {
   const [canScrollR, setCanScrollR]  = useState(false);
   const scrollRef  = useRef(null);
   const hideTimer  = useRef(null);
+
+  // Fechar dropdown ao clicar fora sem bloquear a tela
+  useEffect(() => {
+    if (openMenu === null) return;
+    const handler = (e) => {
+      if (!e.target.closest("[data-navitem]") && !e.target.closest(".sv-dropdown"))
+        setOpenMenu(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [openMenu]);
   const barH       = 54;
 
   // Verificar se pode scrollar
@@ -349,10 +360,7 @@ function SidebarHorizontal({ menuItems, theme, isGlass }) {
         </div>
       </div>
 
-      {/* Fecha dropdown ao clicar fora */}
-      {openMenu !== null && (
-        <div style={{ position:"fixed", inset:0, zIndex:199 }} onClick={() => setOpenMenu(null)}/>
-      )}
+
 
       <style>{`@keyframes dropIn { from { opacity:0; transform:translateY(-10px) scale(0.96); } to { opacity:1; transform:translateY(0) scale(1); } }`}</style>
     </>
@@ -360,14 +368,15 @@ function SidebarHorizontal({ menuItems, theme, isGlass }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ESTILO 3 e 4 — DOCK (arco convexo e côncavo)
+// ESTILO 3 e 4 — DOCK com hamburguer e animação
 // ═══════════════════════════════════════════════════════════════════════════════
 function SidebarDock({ menuItems, theme, isGlass, convex = true }) {
-  const location   = useLocation();
-  const isActive   = p => location.pathname === p;
-  const navigate   = useNavigate();
+  const location  = useLocation();
+  const isActive  = p => location.pathname === p;
+  const navigate  = useNavigate();
   const [hovered, setHovered] = useState(null);
-  const [vh, setVh] = useState(window.innerHeight);
+  const [open,    setOpen]    = useState(false);
+  const [vh,      setVh]      = useState(window.innerHeight);
 
   useEffect(() => {
     const onResize = () => setVh(window.innerHeight);
@@ -375,137 +384,201 @@ function SidebarDock({ menuItems, theme, isGlass, convex = true }) {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  const R   = 26;   // raio bolinha
-  const GAP = 10;   // espaço extra entre bolinhas
+  const R           = 26;
+  const GAP         = 10;
   const MIN_SPACING = R * 2 + GAP;
+  const allItems    = [...menuItems, { to:"__logout__", icon:"🚪", label:"Sair" }];
+  const n           = allItems.length;
+  const totalH      = MIN_SPACING * (n - 1);
+  const startY      = (vh - totalH) / 2;
 
-  const allItems = [...menuItems, { to:"__logout__", icon:"🚪", label:"Sair" }];
-  const n        = allItems.length;
-
-  // Calcular posições do arco baseado na viewport atual
-  const totalH    = MIN_SPACING * (n - 1);
-  const startY    = (vh - totalH) / 2;  // centraliza verticalmente na viewport
-
-  // Calcular curvatura do arco: item central projeta mais, extremos recuam
+  // Curvatura parabólica
   const getX = (i) => {
-    const t = (i / (n - 1)) * 2 - 1; // -1 a +1
-    const curve = 1 - t * t;          // parábola: 0 nas pontas, 1 no centro
-    const maxProject = 52;            // quanto o centro projeta
-    const minX = 4;                   // recuo mínimo nas pontas
-    return convex
-      ? minX + curve * maxProject
-      : minX + curve * maxProject;    // côncavo: mesma lógica, posição right
+    const t     = (i / (n - 1)) * 2 - 1;
+    const curve = 1 - t * t;
+    return 6 + curve * 48;
   };
 
+  // Posição do hamburguer — canto inferior esquerdo (convexo) ou direito (côncavo)
+  const hamSize = 40;
+  const hamBottom = 24;
+  const hamSide   = 16;
+
   return (
-    <div style={{
-      position:"fixed",
-      left: convex ? 0 : "auto",
-      right: convex ? "auto" : 0,
-      top: 0, bottom: 0,
-      zIndex:200,
-      width: 52 + R * 2 + 60,
-      pointerEvents:"none",
-      overflow:"visible",
-    }}>
-      {allItems.map((item, i) => {
-        const cy      = startY + i * MIN_SPACING + R;
-        const xOffset = getX(i);
-        const active  = item.to !== "__logout__" && isActive(item.to);
-        const isLog   = item.to === "__logout__";
-        const hov     = hovered === i;
+    <>
+      {/* Overlay para fechar ao clicar fora */}
+      {open && (
+        <div style={{ position:"fixed", inset:0, zIndex:198 }}
+          onClick={() => setOpen(false)}/>
+      )}
 
-        const bgColor = active
-          ? theme.primary
-          : isLog && hov ? "rgba(239,68,68,0.9)"
-          : isGlass ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.08)";
+      {/* Botão hamburguer */}
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{
+          position:"fixed",
+          left:  convex ? hamSide : "auto",
+          right: convex ? "auto"  : hamSide,
+          bottom: hamBottom,
+          zIndex:210,
+          width: hamSize, height: hamSize,
+          borderRadius:"50%",
+          background: open
+            ? theme.primary
+            : isGlass ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.08)",
+          border:`2px solid ${open ? theme.primary : isGlass?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.15)"}`,
+          backdropFilter:"blur(14px)",
+          WebkitBackdropFilter:"blur(14px)",
+          boxShadow: open
+            ? `0 0 0 5px ${theme.primary}30, 0 8px 28px ${theme.primary}55`
+            : "0 4px 20px rgba(0,0,0,0.4)",
+          cursor:"pointer",
+          display:"flex", flexDirection:"column",
+          alignItems:"center", justifyContent:"center",
+          gap: open ? 0 : 5,
+          transition:"all 0.3s cubic-bezier(0.34,1.56,0.64,1)",
+        }}>
+        {/* 3 traços que viram X */}
+        <span style={{
+          display:"block", width:18, height:2, borderRadius:2,
+          background: open ? "#fff" : isGlass?"rgba(255,255,255,0.8)":"rgba(255,255,255,0.7)",
+          transform: open ? "rotate(45deg) translate(1px, 1px)" : "none",
+          transition:"all 0.3s ease",
+          transformOrigin:"center",
+        }}/>
+        <span style={{
+          display:"block", width:18, height:2, borderRadius:2,
+          background: open ? "#fff" : isGlass?"rgba(255,255,255,0.8)":"rgba(255,255,255,0.7)",
+          transform: open ? "scaleX(0)" : "none",
+          opacity: open ? 0 : 1,
+          transition:"all 0.3s ease",
+        }}/>
+        <span style={{
+          display:"block", width:18, height:2, borderRadius:2,
+          background: open ? "#fff" : isGlass?"rgba(255,255,255,0.8)":"rgba(255,255,255,0.7)",
+          transform: open ? "rotate(-45deg) translate(1px, -1px)" : "none",
+          transition:"all 0.3s ease",
+          transformOrigin:"center",
+        }}/>
+      </div>
 
-        const borderColor = active ? theme.primary
-          : isLog && hov ? "rgba(239,68,68,0.7)"
-          : isGlass ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.15)";
+      {/* Bolinhas do arco */}
+      <div style={{
+        position:"fixed",
+        left:  convex ? 0 : "auto",
+        right: convex ? "auto" : 0,
+        top:0, bottom:0,
+        zIndex:200,
+        width: 52 + R*2 + 60,
+        pointerEvents:"none",
+        overflow:"visible",
+      }}>
+        {allItems.map((item, i) => {
+          const cy    = startY + i * MIN_SPACING + R;
+          const xOff  = getX(i);
+          const active= item.to !== "__logout__" && isActive(item.to);
+          const isLog = item.to === "__logout__";
+          const hov   = hovered === i;
 
-        const scale = hov ? 1.3 : active ? 1.1 : 1;
-        const pushX = hov ? (convex ? 10 : -10) : 0;
-        const shadow= active
-          ? `0 0 0 5px ${theme.primary}35, 0 6px 24px ${theme.primary}55`
-          : hov ? "0 8px 30px rgba(0,0,0,0.5)" : "0 2px 10px rgba(0,0,0,0.3)";
+          // Animação de entrada em cascata
+          const delay = open
+            ? `${i * 35}ms`
+            : `${(n - 1 - i) * 25}ms`;
+          const translateX = convex
+            ? (open ? 0 : -(xOff + R*2))
+            : (open ? 0 :  (xOff + R*2));
 
-        const cx = convex ? xOffset : "auto";
-        const crx= convex ? "auto"  : xOffset;
+          const bgColor = active
+            ? theme.primary
+            : isLog && hov ? "rgba(239,68,68,0.9)"
+            : isGlass ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.09)";
 
-        return (
-          <div
-            key={item.to}
-            style={{
-              position:"absolute",
-              left:  convex ? cx : "auto",
-              right: convex ? "auto" : crx,
-              top:   cy - R,
-              width: R * 2, height: R * 2,
-              pointerEvents:"all",
-            }}
-            onMouseEnter={() => setHovered(i)}
-            onMouseLeave={() => setHovered(null)}
-            onClick={() => { if (isLog) { logoutUser(); navigate("/"); } }}
-          >
-            {/* Bolinha */}
-            <div style={{
-              width: R*2, height: R*2, borderRadius:"50%",
-              background: bgColor,
-              border: `2.5px solid ${borderColor}`,
-              display:"flex", alignItems:"center", justifyContent:"center",
-              fontSize:17, cursor:"pointer",
-              transform: `scale(${scale}) translateX(${pushX}px)`,
-              transition:"all 0.28s cubic-bezier(0.34,1.56,0.64,1)",
-              boxShadow: shadow,
-              backdropFilter: isGlass ? "blur(14px)" : undefined,
-              WebkitBackdropFilter: isGlass ? "blur(14px)" : undefined,
-            }}>
-              {isLog
-                ? <span style={{ fontSize:16 }}>🚪</span>
-                : <Link to={item.to} style={{ textDecoration:"none", display:"flex",
-                    alignItems:"center", justifyContent:"center",
-                    width:"100%", height:"100%", borderRadius:"50%" }}>
-                    <span style={{ fontSize:16 }}>{item.icon}</span>
-                  </Link>
-              }
-            </div>
+          const borderColor = active ? theme.primary
+            : isLog && hov ? "rgba(239,68,68,0.7)"
+            : isGlass ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.16)";
 
-            {/* Tooltip */}
-            {hov && (
-              <div style={{
+          const scale = hov ? 1.28 : active ? 1.1 : 1;
+          const pushX = hov ? (convex ? 8 : -8) : 0;
+
+          return (
+            <div
+              key={item.to}
+              style={{
                 position:"absolute",
-                left:  convex ? R*2 + 10 : "auto",
-                right: convex ? "auto"   : R*2 + 10,
-                top:"50%", transform:"translateY(-50%)",
-                background:"rgba(10,15,30,0.95)",
-                color: isLog ? "#f87171" : "rgba(255,255,255,0.92)",
-                padding:"5px 13px", borderRadius:9,
-                fontSize:13, fontWeight:600, whiteSpace:"nowrap",
-                pointerEvents:"none",
-                border:"1px solid rgba(255,255,255,0.1)",
-                boxShadow:"0 4px 20px rgba(0,0,0,0.4)",
-                zIndex:300,
-                animation:"tipIn 0.14s ease",
+                left:  convex ? xOff : "auto",
+                right: convex ? "auto" : xOff,
+                top:   cy - R,
+                width: R*2, height: R*2,
+                pointerEvents: open ? "all" : "none",
+                transform:`translateX(${translateX}px)`,
+                opacity: open ? 1 : 0,
+                transition: `transform 0.38s cubic-bezier(0.34,1.56,0.64,1) ${delay}, opacity 0.28s ease ${delay}`,
+              }}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+              onClick={() => { if (isLog) { logoutUser(); navigate("/"); } }}
+            >
+              {/* Bolinha */}
+              <div style={{
+                width:R*2, height:R*2, borderRadius:"50%",
+                background:bgColor,
+                border:`2.5px solid ${borderColor}`,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                fontSize:17, cursor:"pointer",
+                transform:`scale(${scale}) translateX(${pushX}px)`,
+                transition:"transform 0.28s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s, background 0.2s",
+                boxShadow: active
+                  ? `0 0 0 5px ${theme.primary}35, 0 6px 24px ${theme.primary}55`
+                  : hov ? "0 8px 28px rgba(0,0,0,0.5)" : "0 2px 10px rgba(0,0,0,0.3)",
+                backdropFilter:isGlass?"blur(14px)":undefined,
+                WebkitBackdropFilter:isGlass?"blur(14px)":undefined,
               }}>
-                {item.label}
+                {isLog
+                  ? <span style={{ fontSize:16 }}>🚪</span>
+                  : <Link to={item.to} onClick={() => setOpen(false)}
+                      style={{ textDecoration:"none", display:"flex", alignItems:"center",
+                        justifyContent:"center", width:"100%", height:"100%", borderRadius:"50%" }}>
+                      <span style={{ fontSize:16 }}>{item.icon}</span>
+                    </Link>
+                }
+              </div>
+
+              {/* Tooltip */}
+              {hov && open && (
                 <div style={{
                   position:"absolute",
-                  [convex?"left":"right"]: -4,
-                  top:"50%", transform:"translateY(-50%) rotate(45deg)",
-                  width:7, height:7,
+                  left:  convex ? R*2+10 : "auto",
+                  right: convex ? "auto" : R*2+10,
+                  top:"50%", transform:"translateY(-50%)",
                   background:"rgba(10,15,30,0.95)",
+                  color:isLog?"#f87171":"rgba(255,255,255,0.92)",
+                  padding:"5px 13px", borderRadius:9,
+                  fontSize:13, fontWeight:600, whiteSpace:"nowrap",
+                  pointerEvents:"none",
                   border:"1px solid rgba(255,255,255,0.1)",
-                  [convex?"borderRight":"borderLeft"]:"none",
-                  borderTop:"none",
-                }}/>
-              </div>
-            )}
-          </div>
-        );
-      })}
-      <style>{`@keyframes tipIn { from{opacity:0;} to{opacity:1;} }`}</style>
-    </div>
+                  boxShadow:"0 4px 20px rgba(0,0,0,0.4)",
+                  zIndex:300,
+                  animation:"tipIn 0.14s ease",
+                }}>
+                  {item.label}
+                  <div style={{
+                    position:"absolute",
+                    [convex?"left":"right"]:-4,
+                    top:"50%", transform:"translateY(-50%) rotate(45deg)",
+                    width:7, height:7,
+                    background:"rgba(10,15,30,0.95)",
+                    border:"1px solid rgba(255,255,255,0.1)",
+                    [convex?"borderRight":"borderLeft"]:"none",
+                    borderTop:"none",
+                  }}/>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <style>{`@keyframes tipIn{from{opacity:0}to{opacity:1}}`}</style>
+    </>
   );
 }
 
