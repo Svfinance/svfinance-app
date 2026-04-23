@@ -149,6 +149,7 @@ export default function ImportExport() {
   const [activeTab, setActiveTab]     = useState('export');
   const [history, setHistory]           = useState([]);
   const [histLoading, setHistLoading]   = useState(false);
+  const [detailLog, setDetailLog]        = useState(null);  // log selecionado para modal
 
   // ── Export state ──
   const [exportDates, setExportDates]     = useState({ from: '', to: '' });
@@ -899,12 +900,105 @@ export default function ImportExport() {
               </div>
             )}
 
+            {/* Modal de detalhe */}
+            {detailLog && (
+              <div style={{ position:"fixed", inset:0, zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center",
+                background:"rgba(0,0,0,0.7)", backdropFilter:"blur(6px)", WebkitBackdropFilter:"blur(6px)" }}
+                onClick={() => setDetailLog(null)}>
+                <div onClick={e=>e.stopPropagation()}
+                  style={{ ...card, width:"min(700px,95vw)", maxHeight:"85vh", overflowY:"auto",
+                    position:"relative", padding:28, borderRadius:20,
+                    background:isGlass?"rgba(255,255,255,0.95)":"rgba(15,22,40,0.98)",
+                    border:`1px solid ${cardBorder}`,
+                    boxShadow:"0 24px 80px rgba(0,0,0,0.6)" }}>
+
+                  {/* Header modal */}
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:20 }}>
+                    <div>
+                      <div style={{ fontSize:20, marginBottom:4 }}>{detailLog.type==="import"?"📥":"📤"}</div>
+                      <h3 style={{ margin:0, color:textMain, fontSize:16, fontWeight:700 }}>{detailLog.type_label}</h3>
+                      <p style={{ margin:"4px 0 0", color:textSub, fontSize:13 }}>
+                        {detailLog.entity_label} · {detailLog.sistema_label} · {detailLog.created_at}
+                      </p>
+                      <p style={{ margin:"4px 0 0", color:textSub, fontSize:12 }}>📄 {detailLog.filename}</p>
+                    </div>
+                    <button onClick={()=>setDetailLog(null)}
+                      style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.25)",
+                        borderRadius:8, color:"#f87171", width:32, height:32, cursor:"pointer",
+                        fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+                  </div>
+
+                  {/* Cards resumo */}
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:20 }}>
+                    {[
+                      { label:"Total",       value:detailLog.total,   color:textSub    },
+                      { label:"Criados",     value:detailLog.created, color:"#4ade80"  },
+                      { label:"Atualizados", value:detailLog.updated, color:"#60a5fa"  },
+                      { label:"Ignorados",   value:detailLog.skipped, color:"#f59e0b"  },
+                    ].map(s=>(
+                      <div key={s.label} style={{ ...card, textAlign:"center", padding:"14px 8px" }}>
+                        <div style={{ fontSize:22, fontWeight:800, color:s.color }}>{s.value}</div>
+                        <div style={{ fontSize:11, color:textSub, textTransform:"uppercase", letterSpacing:"0.5px", marginTop:2 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Barra de sucesso visual */}
+                  {detailLog.total > 0 && (
+                    <div style={{ marginBottom:20 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                        <span style={{ fontSize:12, color:textSub }}>Taxa de sucesso</span>
+                        <span style={{ fontSize:12, fontWeight:700, color:"#4ade80" }}>
+                          {Math.round((detailLog.created+detailLog.updated)/detailLog.total*100)}%
+                        </span>
+                      </div>
+                      <div style={{ height:6, borderRadius:6, background:"rgba(255,255,255,0.08)", overflow:"hidden" }}>
+                        <div style={{ height:"100%", borderRadius:6, background:"linear-gradient(90deg,#22c55e,#4ade80)",
+                          width:`${Math.round((detailLog.created+detailLog.updated)/detailLog.total*100)}%`,
+                          transition:"width 0.8s ease" }}/>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Erros detalhados */}
+                  {detailLog.errors_log?.length > 0 && (
+                    <div>
+                      <h4 style={{ color:"#f87171", margin:"0 0 10px", fontSize:14, fontWeight:700 }}>
+                        ❌ Erros ({detailLog.errors_log.length})
+                      </h4>
+                      <div style={{ display:"flex", flexDirection:"column", gap:6, maxHeight:280, overflowY:"auto" }}>
+                        {detailLog.errors_log.map((err,i)=>(
+                          <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10,
+                            padding:"8px 12px", background:"rgba(239,68,68,0.07)",
+                            borderRadius:8, border:"1px solid rgba(239,68,68,0.18)" }}>
+                            <span style={{ color:"#f87171", fontWeight:700, fontSize:12, flexShrink:0 }}>#{i+1}</span>
+                            <span style={{ color:textMain, fontSize:12 }}>
+                              {typeof err==="string"?err:JSON.stringify(err)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {detailLog.errors_log?.length===0 && (
+                    <div style={{ textAlign:"center", padding:"20px 0", color:"#4ade80" }}>
+                      <div style={{ fontSize:"2rem", marginBottom:8 }}>✅</div>
+                      <div style={{ fontWeight:600 }}>Nenhum erro — importação 100% limpa!</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {!histLoading && history.map(log => {
               const statusColor = log.status === 'success' ? '#4ade80' : log.status === 'warning' ? '#f59e0b' : '#f87171';
               const statusBg    = log.status === 'success' ? 'rgba(34,197,94,0.1)' : log.status === 'warning' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)';
               const statusLabel = log.status === 'success' ? '✅ Sucesso' : log.status === 'warning' ? '⚠️ Parcial' : '❌ Falhou';
               return (
-                <div key={log.id} style={{ ...card, padding:'18px 20px' }}>
+                <div key={log.id} onClick={()=>setDetailLog(log)} style={{ ...card, padding:'18px 20px', cursor:'pointer', transition:'all 0.18s' }}
+                onMouseEnter={e=>e.currentTarget.style.borderColor=theme.primary||'#6366f1'}
+                onMouseLeave={e=>e.currentTarget.style.borderColor=cardBorder}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:10 }}>
                     {/* Lado esquerdo */}
                     <div style={{ display:'flex', gap:14, alignItems:'flex-start' }}>
