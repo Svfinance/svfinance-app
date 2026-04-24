@@ -4,7 +4,7 @@ import Sidebar from '../components/layout/Sidebar';
 import { useTheme } from '../contexts/ThemeContext';
 import ProductReportModal from '../components/ProductReportModal';
 
-const BASE_URL = 'https://finance-control-api-production.up.railway.app/api';
+const BASE_URL = 'https://api.svfinance.com.br/api';
 
 const MODULES = [
   { key: 'transactions', label: 'Transações',  icon: '💰', description: 'Receitas e despesas',     hasTemplate: true,  supportsDateFilter: true,  canImport: true,  adminOnly: false },
