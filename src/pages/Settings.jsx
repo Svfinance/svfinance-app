@@ -5,7 +5,7 @@ import Sidebar from "../components/layout/Sidebar";
 import logoGif from "../assets/video.gif";
 import { getSidebarStyle, setSidebarStyleLS, getAutoHide, setAutoHideLS } from "../components/layout/Sidebar";
 
-const API   = "https://finance-control-api-production.up.railway.app/api";
+const API   = "https://api.svfinance.com.br/api";
 const token = () => localStorage.getItem("token");
 
 function useIsMobile() {
