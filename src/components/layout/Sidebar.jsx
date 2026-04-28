@@ -41,7 +41,6 @@ function useMenuItems() {
     { to:"/team",         icon:"👤", label:"Equipe",            roles:["admin"] },
     { to:"/import-export",icon:"📂", label:"Importar/Exportar", roles:["admin","financial"] },
     { to:"/commissions",  icon:"💰", label:"Comissões",         roles:["admin","financial","seller"] },
-    { to:"/commissions",  icon:"💰", label:"Comissões",         roles:["admin","financial","seller"] },
     { to:"/settings",     icon:"⚙️", label:"Configurações",     roles:null },
   ];
   return all.filter(i => !i.roles || i.roles.includes(role));
