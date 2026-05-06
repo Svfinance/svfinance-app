@@ -19,12 +19,11 @@ import Goals        from "./pages/Goals"
 import ImportExport from "./pages/ImportExport"
 import Reports      from "./pages/Reports"
 import Commissions  from "./pages/Commissions"
+import BrandStudio  from "./pages/BrandStudio"
 import ProtectedRoute from "./components/ProtectedRoute"
 
 function App() {
   return (
-    // Ordem dos providers: Theme → Plan → Nicho → Router
-    // Assim qualquer página pode usar usePlan() e useNicho()
     <ThemeProvider>
       <PlanProvider>
         <NichoProvider>
@@ -34,13 +33,14 @@ function App() {
               <Route path="/verify-email"   element={<Login />} />
               <Route path="/reset-password" element={<Login />} />
 
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/clients"   element={<ProtectedRoute><Clients /></ProtectedRoute>} />
-              <Route path="/products"  element={<ProtectedRoute><Products /></ProtectedRoute>} />
-              <Route path="/quotes"    element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
-              <Route path="/sales"     element={<ProtectedRoute><Sales /></ProtectedRoute>} />
-              <Route path="/settings"  element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-              <Route path="/goals"     element={<ProtectedRoute><Goals /></ProtectedRoute>} />
+              <Route path="/dashboard"    element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/clients"      element={<ProtectedRoute><Clients /></ProtectedRoute>} />
+              <Route path="/products"     element={<ProtectedRoute><Products /></ProtectedRoute>} />
+              <Route path="/quotes"       element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
+              <Route path="/sales"        element={<ProtectedRoute><Sales /></ProtectedRoute>} />
+              <Route path="/settings"     element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/goals"        element={<ProtectedRoute><Goals /></ProtectedRoute>} />
+              <Route path="/brand-studio" element={<ProtectedRoute><BrandStudio /></ProtectedRoute>} />
 
               <Route path="/transactions" element={
                 <ProtectedRoute roles={["admin", "financial"]}>
