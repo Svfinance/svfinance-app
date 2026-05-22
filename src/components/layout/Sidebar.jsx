@@ -9,13 +9,13 @@ const STYLE_KEY    = "sv_sidebar_style";
 const AUTOHIDE_KEY = "sv_sidebar_autohide";
 
 export function getSidebarStyle()    { return localStorage.getItem(STYLE_KEY) || "vertical"; }
-export function setSidebarStyleLS(s) { localStorage.setItem(STYLE_KEY, s); }
+export function setSidebarStyleLS(s) { localStorage.setItem(STYLE_KEY, s); window.dispatchEvent(new Event("sv_sidebar_style_changed")); }
 export function getAutoHide()        { return localStorage.getItem(AUTOHIDE_KEY) === "true"; }
 export function setAutoHideLS(v)     { localStorage.setItem(AUTOHIDE_KEY, String(v)); }
 
-// Mobile style padrão = dock
 const MOBILE_STYLE_KEY = "sv_mobile_style";
 function getMobileStyle() { return localStorage.getItem(MOBILE_STYLE_KEY) || "dock"; }
+function setMobileStyleLS(s) { localStorage.setItem(MOBILE_STYLE_KEY, s); window.dispatchEvent(new Event("sv_mobile_style_changed")); }
 
 function useIsMobile() {
   const [m, setM] = useState(window.innerWidth <= 768);
@@ -31,7 +31,9 @@ function useIsMobile() {
 function useMenuItems() {
   const role        = localStorage.getItem("role")         || "viewer";
   const accountType = localStorage.getItem("account_type") || "business";
+  const plan        = localStorage.getItem("sv_plan")      || "free";
   const isPersonal  = accountType === "personal";
+  const canNFe      = role === "admin" && (plan === "pro" || plan === "business");
   const { label, hasModule } = useNicho();
 
   const all = isPersonal ? [
@@ -42,22 +44,24 @@ function useMenuItems() {
     { to:"/goals",        icon:"🎯", label:"Metas"         },
     { to:"/settings",     icon:"⚙️", label:"Configurações" },
   ] : [
-    { to:"/dashboard",     icon:"🏠", label:"Dashboard",           roles:null,                              module:"dashboard"    },
-    { to:"/clients",       icon:"👥", label:label("clients"),       roles:null,                              module:"clients"      },
-    { to:"/transactions",  icon:"💰", label:"Transações",           roles:["admin","financial"],             module:"transactions", children:[
+    { to:"/dashboard",     icon:"🏠", label:"Dashboard",           roles:null,                                  module:"dashboard"    },
+    { to:"/clients",       icon:"👥", label:label("clients"),       roles:null,                                  module:"clients"      },
+    { to:"/transactions",  icon:"💰", label:"Transações",           roles:["admin","financial"],                 module:"transactions", children:[
       { to:"/transactions", label:"Todas as transações" },
       { to:"/bills",        label:"Contas a pagar/receber" },
     ]},
-    { to:"/analytics",    icon:"📊", label:"Analytics",            roles:["admin","financial"],             module:"analytics"    },
-    { to:"/reports",       icon:"📈", label:"Relatórios",           roles:["admin","financial"],             module:"reports"      },
-    { to:"/products",      icon:"📦", label:label("products"),      roles:["admin","financial","stock","seller"], module:"products"},
-    { to:"/quotes",        icon:"🧾", label:"Orçamentos",           roles:null,                              module:"quotes"       },
-    { to:"/sales",         icon:"🛒", label:label("sales"),         roles:null,                              module:"orders"       },
-    { to:"/team",          icon:"👤", label:"Equipe",               roles:["admin"],                         module:"team"         },
-    { to:"/commissions",   icon:"💸", label:"Comissões",            roles:["admin","financial","seller"],    module:"commissions"  },
-    { to:"/import-export", icon:"📂", label:"Importar/Exportar",    roles:["admin","financial"],             module:"import"       },
-    { to:"/goals",         icon:"🎯", label:"Metas",                roles:null,                              module:"goals"        },
-    { to:"/settings",      icon:"⚙️", label:"Configurações",        roles:null,                              module:"settings"     },
+    { to:"/analytics",    icon:"📊", label:"Analytics",            roles:["admin","financial"],                 module:"analytics"    },
+    { to:"/reports",       icon:"📈", label:"Relatórios",           roles:["admin","financial"],                 module:"reports"      },
+    { to:"/products",      icon:"📦", label:label("products"),      roles:["admin","financial","stock","seller"], module:"products"     },
+    { to:"/quotes",        icon:"🧾", label:"Orçamentos",           roles:null,                                  module:"quotes"       },
+    { to:"/sales",         icon:"🛒", label:label("sales"),         roles:null,                                  module:"orders"       },
+    // ── NF-e — só para admin Pro/Business ──
+    ...(canNFe ? [{ to:"/sales", icon:"📋", label:"Emitir NF-e", roles:["admin"], module:"orders", nfe:true }] : []),
+    { to:"/team",          icon:"👤", label:"Equipe",               roles:["admin"],                             module:"team"         },
+    { to:"/commissions",   icon:"💸", label:"Comissões",            roles:["admin","financial","seller"],        module:"commissions"  },
+    { to:"/import-export", icon:"📂", label:"Importar/Exportar",    roles:["admin","financial"],                 module:"import"       },
+    { to:"/goals",         icon:"🎯", label:"Metas",                roles:null,                                  module:"goals"        },
+    { to:"/settings",      icon:"⚙️", label:"Configurações",        roles:null,                                  module:"settings"     },
   ];
 
   return all.filter(i => {
@@ -135,19 +139,24 @@ function SidebarVertical({ menuItems, theme, isGlass, sidebarOpen, setSidebarOpe
       </div>
       <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", minHeight:0 }}>
         {menuItems.map(item => {
-          const active   = isActive(item.to);
+          const active   = isActive(item.to) && !item.nfe;
           const activeBg = isGlass ? "rgba(255,255,255,0.35)" : theme.sidebarActive;
           return (
-            <div key={item.to} style={{
+            <div key={item.nfe ? "__nfe__" : item.to} style={{
               padding:12, cursor:"pointer", borderRadius:10, transition:"all 0.2s", marginBottom:6,
-              background:active?activeBg:"transparent",
-              border:active?`1px solid ${isGlass?"rgba(255,255,255,0.55)":theme.sidebarBorder}`:"1px solid transparent",
+              background: item.nfe
+                ? `linear-gradient(135deg, rgba(212,175,55,0.15), rgba(212,175,55,0.05))`
+                : active ? activeBg : "transparent",
+              border: item.nfe
+                ? "1px solid rgba(212,175,55,0.4)"
+                : active ? `1px solid ${isGlass?"rgba(255,255,255,0.55)":theme.sidebarBorder}` : "1px solid transparent",
             }}
-              onMouseEnter={e=>{ if(!active) e.currentTarget.style.background=isGlass?"rgba(255,255,255,0.2)":`${theme.primary}11`; }}
-              onMouseLeave={e=>{ if(!active) e.currentTarget.style.background="transparent"; }}>
-              <Link to={item.to} style={{ textDecoration:"none", color:theme.textPrimary, display:"flex", alignItems:"center", gap:12, width:"100%" }}>
+              onMouseEnter={e=>{ if(!active&&!item.nfe) e.currentTarget.style.background=isGlass?"rgba(255,255,255,0.2)":`${theme.primary}11`; }}
+              onMouseLeave={e=>{ if(!active&&!item.nfe) e.currentTarget.style.background="transparent"; }}>
+              <Link to={item.to} style={{ textDecoration:"none", color: item.nfe?"#d4af37":theme.textPrimary, display:"flex", alignItems:"center", gap:12, width:"100%" }}>
                 <span style={{ fontSize:18, minWidth:24, textAlign:"center" }}>{item.icon}</span>
-                <span style={{ opacity:sidebarOpen?1:0, transition:"0.3s", whiteSpace:"nowrap", fontWeight:active?600:400 }}>{item.label}</span>
+                <span style={{ opacity:sidebarOpen?1:0, transition:"0.3s", whiteSpace:"nowrap", fontWeight:active||item.nfe?600:400 }}>{item.label}</span>
+                {item.nfe && sidebarOpen && <span style={{ marginLeft:"auto", fontSize:9, background:"#d4af37", color:"#000", borderRadius:4, padding:"1px 5px", fontWeight:700 }}>NF-e</span>}
               </Link>
             </div>
           );
@@ -224,20 +233,21 @@ function SidebarHorizontal({ menuItems, theme, isGlass }) {
         <div ref={scrollRef} onScroll={checkScroll} style={{ display:"flex",alignItems:"center",flex:1,overflowX:"auto",scrollbarWidth:"none",msOverflowStyle:"none" }}>
           <div style={{ display:"flex",alignItems:"center",gap:2,minWidth:"max-content",padding:"0 4px" }}>
             {menuItems.map((item, idx) => {
-              const active  = isActive(item.to);
+              const active  = isActive(item.to) && !item.nfe;
               const hasChild= item.children?.length > 0;
               const isOpen  = openIdx===idx;
               return (
-                <div key={item.to} style={{ position:"relative",flexShrink:0 }}>
+                <div key={item.nfe?"__nfe__":item.to} style={{ position:"relative",flexShrink:0 }}>
                   <div data-navitem={idx} onClick={e=>handleItem(item,idx,e.currentTarget)} style={{
                     display:"flex",alignItems:"center",gap:6,padding:"6px 11px",borderRadius:8,cursor:"pointer",
                     whiteSpace:"nowrap",userSelect:"none",
-                    color:active?"#fff":"rgba(255,255,255,0.65)",
-                    background:active?theme.primary:"transparent",
-                    fontWeight:active?600:400,fontSize:13,transition:"all 0.18s",
+                    color: item.nfe ? "#d4af37" : active?"#fff":"rgba(255,255,255,0.65)",
+                    background: item.nfe ? "rgba(212,175,55,0.12)" : active?theme.primary:"transparent",
+                    border: item.nfe ? "1px solid rgba(212,175,55,0.35)" : "1px solid transparent",
+                    fontWeight:active||item.nfe?600:400,fontSize:13,transition:"all 0.18s",
                   }}
-                    onMouseEnter={e=>{ if(!active){e.currentTarget.style.background="rgba(255,255,255,0.1)";e.currentTarget.style.color="#fff";} }}
-                    onMouseLeave={e=>{ if(!active){e.currentTarget.style.background="transparent";e.currentTarget.style.color="rgba(255,255,255,0.65)";} }}>
+                    onMouseEnter={e=>{ if(!active&&!item.nfe){e.currentTarget.style.background="rgba(255,255,255,0.1)";e.currentTarget.style.color="#fff";} }}
+                    onMouseLeave={e=>{ if(!active&&!item.nfe){e.currentTarget.style.background="transparent";e.currentTarget.style.color="rgba(255,255,255,0.65)";} }}>
                     <span style={{ fontSize:15 }}>{item.icon}</span>
                     <span>{item.label}</span>
                     {hasChild && <span style={{ fontSize:8,opacity:0.6,marginLeft:1,transform:isOpen?"rotate(180deg)":"rotate(0)",transition:"transform 0.2s",display:"inline-block" }}>▼</span>}
@@ -262,7 +272,7 @@ function SidebarHorizontal({ menuItems, theme, isGlass }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// DOCK CONVEXO — Desktop e Mobile (único componente)
+// DOCK CONVEXO
 // ═══════════════════════════════════════════════════════════════
 function SidebarDock({ menuItems, theme, isGlass, convex = true, mobile = false }) {
   const location = useLocation();
@@ -287,31 +297,22 @@ function SidebarDock({ menuItems, theme, isGlass, convex = true, mobile = false 
 
   const getInitialPos = useCallback(() => {
     try { const s = JSON.parse(localStorage.getItem(HAM_KEY)); if (s) return s; } catch {}
-    // Posição inicial: esquerda no convexo, direita no côncavo
-    return {
-      x: convex ? 14 : window.innerWidth - 58,
-      y: Math.round(window.innerHeight / 2 - 22),
-    };
+    return { x: convex ? 14 : window.innerWidth - 58, y: Math.round(window.innerHeight / 2 - 22) };
   }, [HAM_KEY, convex]);
 
   const [hamPos, setHamPos] = useState(getInitialPos);
   const hamSize = mobile ? 50 : 44;
 
   const startDrag = (cx, cy) => {
-    dragging.current = true;
-    didDrag.current  = false;
+    dragging.current = true; didDrag.current = false;
     dragStart.current = { mx:cx, my:cy, bx:hamPos.x, by:hamPos.y };
   };
 
   const moveDrag = useCallback((cx, cy) => {
     if (!dragging.current) return;
-    const dx = cx - dragStart.current.mx;
-    const dy = cy - dragStart.current.my;
+    const dx = cx - dragStart.current.mx; const dy = cy - dragStart.current.my;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didDrag.current = true;
-    setHamPos({
-      x: Math.max(0, Math.min(ww - hamSize, dragStart.current.bx + dx)),
-      y: Math.max(0, Math.min(vh - hamSize, dragStart.current.by + dy)),
-    });
+    setHamPos({ x: Math.max(0, Math.min(ww-hamSize, dragStart.current.bx+dx)), y: Math.max(0, Math.min(vh-hamSize, dragStart.current.by+dy)) });
   }, [ww, vh, hamSize]);
 
   const endDrag = useCallback(() => {
@@ -319,33 +320,25 @@ function SidebarDock({ menuItems, theme, isGlass, convex = true, mobile = false 
     setHamPos(p => { localStorage.setItem(HAM_KEY, JSON.stringify(p)); return p; });
   }, [HAM_KEY]);
 
-  // Mouse
   const onMouseDown = (e) => {
-    e.preventDefault();
-    startDrag(e.clientX, e.clientY);
+    e.preventDefault(); startDrag(e.clientX, e.clientY);
     const mv = (e) => moveDrag(e.clientX, e.clientY);
-    const up = () => { endDrag(); window.removeEventListener("mousemove", mv); window.removeEventListener("mouseup", up); };
-    window.addEventListener("mousemove", mv);
-    window.addEventListener("mouseup", up);
+    const up = () => { endDrag(); window.removeEventListener("mousemove",mv); window.removeEventListener("mouseup",up); };
+    window.addEventListener("mousemove",mv); window.addEventListener("mouseup",up);
   };
 
-  // Touch
   const onTouchStart = (e) => {
-    const t = e.touches[0];
-    startDrag(t.clientX, t.clientY);
-    const mv = (e) => { e.preventDefault(); const t = e.touches[0]; moveDrag(t.clientX, t.clientY); };
-    const up = () => { endDrag(); window.removeEventListener("touchmove", mv); window.removeEventListener("touchend", up); };
-    window.addEventListener("touchmove", mv, { passive:false });
-    window.addEventListener("touchend", up);
+    const t = e.touches[0]; startDrag(t.clientX, t.clientY);
+    const mv = (e) => { e.preventDefault(); const t=e.touches[0]; moveDrag(t.clientX,t.clientY); };
+    const up = () => { endDrag(); window.removeEventListener("touchmove",mv); window.removeEventListener("touchend",up); };
+    window.addEventListener("touchmove",mv,{passive:false}); window.addEventListener("touchend",up);
   };
 
   const R       = mobile ? 30 : 26;
   const SPACING = R * 2 + (mobile ? 12 : 10);
-
   const allItems = [...menuItems, { to:"__logout__", icon:"🚪", label:"Sair" }];
   const n        = allItems.length;
   const totalH   = SPACING * (n - 1);
-
   const hamCX    = hamPos.x + hamSize / 2;
   const hamCY    = hamPos.y + hamSize / 2;
   const isRight  = hamCX > ww * 0.5;
@@ -355,134 +348,98 @@ function SidebarDock({ menuItems, theme, isGlass, convex = true, mobile = false 
 
   return (
     <>
-      {/* Botão hamburger */}
-      <div
-        onMouseDown={onMouseDown}
-        onTouchStart={onTouchStart}
+      <div onMouseDown={onMouseDown} onTouchStart={onTouchStart}
         onClick={() => { if (!didDrag.current) setOpen(o => !o); }}
         style={{
           position:"fixed", left:hamPos.x, top:hamPos.y, zIndex:500,
           width:hamSize, height:hamSize, borderRadius:"50%",
           background: open ? theme.primary : isGlass ? "rgba(255,255,255,0.22)" : "rgba(15,20,42,0.95)",
-          border:`2px solid ${open ? theme.primary : isGlass ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.18)"}`,
+          border:`2px solid ${open?theme.primary:isGlass?"rgba(255,255,255,0.4)":"rgba(255,255,255,0.18)"}`,
           backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
-          boxShadow: open
-            ? `0 0 0 6px ${theme.primary}30, 0 10px 36px ${theme.primary}55`
-            : "0 4px 24px rgba(0,0,0,0.55)",
+          boxShadow: open?`0 0 0 6px ${theme.primary}30, 0 10px 36px ${theme.primary}55`:"0 4px 24px rgba(0,0,0,0.55)",
           cursor:"grab", userSelect:"none", pointerEvents:"all",
           display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-          transition: dragging.current ? "none" : "background 0.3s, border 0.3s, box-shadow 0.3s",
+          transition: dragging.current?"none":"background 0.3s, border 0.3s, box-shadow 0.3s",
         }}>
         {[
           { mb:open?0:mobile?6:5, rotate:open?"rotate(45deg) translate(0,3px)":"none" },
           { mb:open?0:mobile?6:5, opacity:open?0:1 },
           { mb:0, rotate:open?"rotate(-45deg) translate(0,-3px)":"none" },
         ].map((s, i) => (
-          <span key={i} style={{
-            display:"block", width:mobile?22:18, height:2, borderRadius:2,
-            background:"rgba(255,255,255,0.9)",
-            marginBottom:s.mb, opacity:s.opacity??1,
-            transform:s.rotate??"none", transition:"all 0.28s ease",
-          }}/>
+          <span key={i} style={{ display:"block", width:mobile?22:18, height:2, borderRadius:2, background:"rgba(255,255,255,0.9)", marginBottom:s.mb, opacity:s.opacity??1, transform:s.rotate??"none", transition:"all 0.28s ease" }}/>
         ))}
       </div>
 
-      {/* Bubbles */}
       {allItems.map((item, i) => {
         let cy;
-        const orderedI = isBottomZ ? n - 1 - i : i;
+        const orderedI = isBottomZ ? n-1-i : i;
         if      (isTopZ)    cy = hamPos.y + hamSize + 8 + i * SPACING;
-        else if (isBottomZ) cy = hamPos.y - 8 - (i + 1) * SPACING;
-        else                cy = hamCY - totalH / 2 + i * SPACING;
+        else if (isBottomZ) cy = hamPos.y - 8 - (i+1) * SPACING;
+        else                cy = hamCY - totalH/2 + i * SPACING;
 
-        const t     = n === 1 ? 0 : (i / (n - 1)) * 2 - 1;
-        const curve = isMidZ ? (1 - t * t) : (isTopZ ? (i / (n - 1)) * 0.6 : ((n - 1 - i) / (n - 1)) * 0.6);
-        const xOff  = 8 + curve * (mobile ? 56 : 48);
+        const t     = n===1?0:(i/(n-1))*2-1;
+        const curve = isMidZ?(1-t*t):(isTopZ?(i/(n-1))*0.6:((n-1-i)/(n-1))*0.6);
+        const xOff  = 8 + curve * (mobile?56:48);
+        const bubbleX = isRight ? hamPos.x-xOff-R*2 : hamPos.x+hamSize+xOff-R;
+        const slideX  = isRight ? (open?0:xOff+R*2+24) : (open?0:-(xOff+R*2+24));
+        const delay   = open?`${orderedI*38}ms`:`${(n-1-orderedI)*24}ms`;
 
-        const bubbleX = isRight
-          ? hamPos.x - xOff - R * 2
-          : hamPos.x + hamSize + xOff - R;
-
-        const slideX = isRight
-          ? (open ? 0 : xOff + R * 2 + 24)
-          : (open ? 0 : -(xOff + R * 2 + 24));
-        const delay  = open ? `${orderedI * 38}ms` : `${(n - 1 - orderedI) * 24}ms`;
-
-        const active = item.to !== "__logout__" && isActive(item.to);
-        const isLog  = item.to === "__logout__";
-        const hov    = hovered === i;
-        const pushX  = hov ? (isRight ? -10 : 10) : 0;
+        const active = item.to!=="__logout__" && !item.nfe && isActive(item.to);
+        const isLog  = item.to==="__logout__";
+        const isNFe  = item.nfe;
+        const hov    = hovered===i;
+        const pushX  = hov?(isRight?-10:10):0;
 
         return (
-          <div key={`${item.to}-${i}`} style={{
-            position:"fixed",
-            left: bubbleX,
-            top:  cy - R,
-            width:R * 2, height:R * 2, zIndex:400,
-            pointerEvents: open ? "all" : "none",
+          <div key={`${item.nfe?"nfe":item.to}-${i}`} style={{
+            position:"fixed", left:bubbleX, top:cy-R, width:R*2, height:R*2, zIndex:400,
+            pointerEvents:open?"all":"none",
             transform:`translateX(${slideX}px)`,
-            opacity: open ? 1 : 0,
+            opacity:open?1:0,
             transition:`transform 0.38s cubic-bezier(0.34,1.56,0.64,1) ${delay}, opacity 0.25s ease ${delay}`,
           }}
-            onMouseEnter={() => setHovered(i)}
-            onMouseLeave={() => setHovered(null)}
-            onTouchStart={() => setHovered(i)}
-            onTouchEnd={() => setHovered(null)}
-            onClick={() => {
-              if (isLog) { logoutUser(); navigate("/"); }
-              else { setOpen(false); }
-            }}>
-
-            {/* Círculo */}
+            onMouseEnter={()=>setHovered(i)} onMouseLeave={()=>setHovered(null)}
+            onTouchStart={()=>setHovered(i)} onTouchEnd={()=>setHovered(null)}
+            onClick={()=>{ if(isLog){logoutUser();navigate("/");}else{setOpen(false);} }}>
             <div style={{
               width:R*2, height:R*2, borderRadius:"50%",
-              background: active
-                ? theme.primary
-                : isLog && hov
-                  ? "rgba(239,68,68,0.92)"
-                  : isGlass
-                    ? "rgba(255,255,255,0.22)"
-                    : "rgba(15,20,42,0.95)",
+              background: isNFe && hov ? "rgba(212,175,55,0.9)" :
+                          isNFe       ? "rgba(212,175,55,0.2)"  :
+                          active      ? theme.primary            :
+                          isLog&&hov  ? "rgba(239,68,68,0.92)"  :
+                          isGlass     ? "rgba(255,255,255,0.22)" : "rgba(15,20,42,0.95)",
               border:`2.5px solid ${
-                active       ? theme.primary :
-                isLog && hov ? "rgba(239,68,68,0.7)" :
-                isGlass      ? "rgba(255,255,255,0.45)" :
-                               "rgba(255,255,255,0.2)"
+                isNFe       ? "rgba(212,175,55,0.7)" :
+                active      ? theme.primary           :
+                isLog&&hov  ? "rgba(239,68,68,0.7)"  :
+                isGlass     ? "rgba(255,255,255,0.45)": "rgba(255,255,255,0.2)"
               }`,
               display:"flex", alignItems:"center", justifyContent:"center",
-              fontSize: mobile ? 22 : 17,
-              cursor:"pointer",
-              transform:`scale(${hov ? 1.3 : active ? 1.12 : 1}) translateX(${pushX}px)`,
+              fontSize:mobile?22:17, cursor:"pointer",
+              transform:`scale(${hov?1.3:active||isNFe?1.12:1}) translateX(${pushX}px)`,
               transition:"transform 0.28s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s, background 0.2s",
-              boxShadow: active
-                ? `0 0 0 5px ${theme.primary}35, 0 6px 24px ${theme.primary}55`
-                : hov
-                  ? "0 8px 28px rgba(0,0,0,0.55)"
-                  : "0 2px 12px rgba(0,0,0,0.35)",
-              backdropFilter: isGlass ? "blur(14px)" : undefined,
-              WebkitBackdropFilter: isGlass ? "blur(14px)" : undefined,
+              boxShadow: isNFe  ? `0 0 0 4px rgba(212,175,55,0.2), 0 6px 24px rgba(212,175,55,0.3)` :
+                         active ? `0 0 0 5px ${theme.primary}35, 0 6px 24px ${theme.primary}55`      :
+                         hov    ? "0 8px 28px rgba(0,0,0,0.55)" : "0 2px 12px rgba(0,0,0,0.35)",
+              backdropFilter:isGlass?"blur(14px)":undefined, WebkitBackdropFilter:isGlass?"blur(14px)":undefined,
             }}>
-              {isLog
-                ? <span>🚪</span>
-                : <Link to={item.to} style={{ textDecoration:"none", display:"flex", alignItems:"center", justifyContent:"center", width:"100%", height:"100%", borderRadius:"50%" }}>
-                    <span style={{ fontSize: mobile ? 22 : 17 }}>{item.icon}</span>
-                  </Link>
+              {isLog ? <span>🚪</span> :
+                <Link to={item.to} style={{ textDecoration:"none", display:"flex", alignItems:"center", justifyContent:"center", width:"100%", height:"100%", borderRadius:"50%" }}>
+                  <span style={{ fontSize:mobile?22:17 }}>{item.icon}</span>
+                </Link>
               }
             </div>
-
-            {/* Tooltip */}
             {hov && (
               <div style={{
                 position:"absolute",
-                left: isRight ? "auto" : R*2+8,
-                right:isRight ? R*2+8 : "auto",
+                left:isRight?"auto":R*2+8, right:isRight?R*2+8:"auto",
                 top:"50%", transform:"translateY(-50%)",
-                background:"rgba(8,12,28,0.97)",
-                color: isLog ? "#f87171" : "rgba(255,255,255,0.95)",
-                padding: mobile ? "6px 14px" : "5px 13px",
-                borderRadius:9, fontSize: mobile ? 15 : 13,
+                background: isNFe?"rgba(30,20,0,0.97)":"rgba(8,12,28,0.97)",
+                color: isLog?"#f87171":isNFe?"#d4af37":"rgba(255,255,255,0.95)",
+                padding:mobile?"6px 14px":"5px 13px",
+                borderRadius:9, fontSize:mobile?15:13,
                 fontWeight:600, whiteSpace:"nowrap", pointerEvents:"none",
-                border:"1px solid rgba(255,255,255,0.12)",
+                border:`1px solid ${isNFe?"rgba(212,175,55,0.4)":"rgba(255,255,255,0.12)"}`,
                 boxShadow:"0 4px 20px rgba(0,0,0,0.4)", zIndex:600,
                 animation:"tipIn 0.14s ease",
               }}>
@@ -492,35 +449,33 @@ function SidebarDock({ menuItems, theme, isGlass, convex = true, mobile = false 
           </div>
         );
       })}
-
       <style>{`@keyframes tipIn{from{opacity:0}to{opacity:1}}`}</style>
     </>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MOBILE — padrão = Dock Convexo
+// MOBILE
 // ═══════════════════════════════════════════════════════════════
 const MOBILE_STYLES = [
-  { id:"dock",       icon:"⬤", label:"Dock",         desc:"Bolinhas flutuantes (padrão)" },
-  { id:"vertical",   icon:"▐", label:"Lateral",       desc:"Desliza da esquerda" },
-  { id:"right",      icon:"▌", label:"Dir. Lateral",  desc:"Desliza da direita"  },
-  { id:"bottom",     icon:"▂", label:"Bottom Sheet",  desc:"Sobe da base"        },
-  { id:"horizontal", icon:"▬", label:"Top Bar",       desc:"Barra no topo"       },
+  { id:"dock",       icon:"⬤", label:"Dock",        desc:"Bolinhas flutuantes (padrão)" },
+  { id:"vertical",   icon:"▐", label:"Lateral",      desc:"Desliza da esquerda" },
+  { id:"right",      icon:"▌", label:"Dir. Lateral", desc:"Desliza da direita"  },
+  { id:"bottom",     icon:"▂", label:"Bottom Sheet", desc:"Sobe da base"        },
+  { id:"horizontal", icon:"▬", label:"Top Bar",      desc:"Barra no topo"       },
 ];
 
 function StylePicker({ styles, current, onSelect, theme, isGlass, border, inline }) {
   const grid = (
     <div style={{ display:"grid", gridTemplateColumns:inline?"repeat(3,1fr)":"1fr 1fr", gap:inline?6:8 }}>
       {styles.map(s => (
-        <div key={s.id} onClick={() => onSelect(s.id)} style={{
-          padding: inline?"8px 6px":"10px 8px", borderRadius:inline?8:10,
+        <div key={s.id} onClick={()=>onSelect(s.id)} style={{
+          padding:inline?"8px 6px":"10px 8px", borderRadius:inline?8:10,
           cursor:"pointer", transition:"all 0.15s", textAlign:"center",
           background:current===s.id?`${theme.primary}22`:"transparent",
           border:`1px solid ${current===s.id?theme.primary:border}`,
           color:current===s.id?theme.primary:theme.textMuted,
-          fontWeight:current===s.id?700:400,
-          fontSize:inline?11:12,
+          fontWeight:current===s.id?700:400, fontSize:inline?11:12,
         }}>
           <div style={{ fontSize:inline?16:20, marginBottom:4 }}>{s.icon}</div>
           <div>{s.label}</div>
@@ -529,22 +484,14 @@ function StylePicker({ styles, current, onSelect, theme, isGlass, border, inline
       ))}
     </div>
   );
-
   if (inline) return (
     <div style={{ padding:"12px 14px", borderBottom:`1px solid ${border}`, flexShrink:0 }}>
       <div style={{ fontSize:11, color:theme.textMuted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:8 }}>Estilo do menu</div>
       {grid}
     </div>
   );
-
   return (
-    <div style={{
-      position:"fixed", top:74, left:14, zIndex:600,
-      background:isGlass?"rgba(255,255,255,0.92)":"rgba(15,20,40,0.97)",
-      backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
-      border:`1px solid ${border}`, borderRadius:16, padding:16,
-      boxShadow:"0 12px 40px rgba(0,0,0,0.5)", minWidth:230,
-    }}>
+    <div style={{ position:"fixed", top:74, left:14, zIndex:600, background:isGlass?"rgba(255,255,255,0.92)":"rgba(15,20,40,0.97)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", border:`1px solid ${border}`, borderRadius:16, padding:16, boxShadow:"0 12px 40px rgba(0,0,0,0.5)", minWidth:230 }}>
       <div style={{ fontSize:11, color:theme.textMuted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:10 }}>Estilo do menu</div>
       {grid}
     </div>
@@ -556,120 +503,53 @@ function SidebarMobile({ menuItems, theme, isGlass }) {
   const isActive = p => location.pathname === p;
   const navigate = useNavigate();
 
-  // padrão = "dock"
-  const [mStyle, setMStyleState] = useState(getMobileStyle());
-  const [open,        setOpen]        = useState(false);
-  const [showStyles,  setShowStyles]  = useState(false);
+  const [mStyle,     setMStyleState] = useState(getMobileStyle());
+  const [open,       setOpen]        = useState(false);
+  const [showStyles, setShowStyles]  = useState(false);
 
-  const setMStyle = (s) => {
-    setMStyleState(s);
-    localStorage.setItem(MOBILE_STYLE_KEY, s);
-    setShowStyles(false);
-    setOpen(false);
-  };
+  useEffect(() => {
+    const fn = () => { setMStyleState(getMobileStyle()); setOpen(false); setShowStyles(false); };
+    window.addEventListener("sv_mobile_style_changed", fn);
+    return () => window.removeEventListener("sv_mobile_style_changed", fn);
+  }, []);
 
-  const backdrop = isGlass ? "blur(24px)" : "blur(18px)";
-  const border   = isGlass ? "rgba(255,255,255,0.4)" : theme.borderCard;
-  const bg       = isGlass ? "rgba(255,255,255,0.22)" : theme.bgSecondary;
+  const setMStyle = (s) => setMobileStyleLS(s);
 
-  // ── DOCK (padrão mobile) ──────────────────────────────────
-  if (mStyle === "dock") {
-    return (
-      <>
-        <SidebarDock
-          menuItems={menuItems}
-          theme={theme}
-          isGlass={isGlass}
-          convex={true}
-          mobile={true}
-        />
-        {/* Botão ⚙ para trocar estilo — canto superior direito */}
-        <button
-          onClick={() => setShowStyles(s => !s)}
-          style={{
-            position:"fixed", top:14, right:14, zIndex:600,
-            width:40, height:40, borderRadius:12,
-            background: showStyles ? `${theme.primary}22` : isGlass ? "rgba(255,255,255,0.35)" : "rgba(15,20,42,0.9)",
-            backdropFilter:backdrop, WebkitBackdropFilter:backdrop,
-            border:`1px solid ${showStyles ? theme.primary : border}`,
-            color: showStyles ? theme.primary : theme.textMuted,
-            fontSize:16, cursor:"pointer",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            boxShadow:"0 4px 16px rgba(0,0,0,0.4)",
-          }}>
-          ⚙
-        </button>
+  const backdrop = isGlass?"blur(24px)":"blur(18px)";
+  const border   = isGlass?"rgba(255,255,255,0.4)":theme.borderCard;
+  const bg       = isGlass?"rgba(255,255,255,0.22)":theme.bgSecondary;
 
-        {showStyles && (
-          <>
-            {/* Overlay para fechar */}
-            <div style={{ position:"fixed",inset:0,zIndex:595 }} onClick={() => setShowStyles(false)}/>
-            <StylePicker styles={MOBILE_STYLES} current={mStyle} onSelect={setMStyle} theme={theme} isGlass={isGlass} border={border}/>
-          </>
-        )}
-      </>
-    );
-  }
+  if (mStyle==="dock") return (
+    <>
+      <SidebarDock menuItems={menuItems} theme={theme} isGlass={isGlass} convex={true} mobile={true}/>
+      <button onClick={()=>setShowStyles(s=>!s)} style={{ position:"fixed", top:14, right:14, zIndex:600, width:40, height:40, borderRadius:12, background:showStyles?`${theme.primary}22`:isGlass?"rgba(255,255,255,0.35)":"rgba(15,20,42,0.9)", backdropFilter:backdrop, WebkitBackdropFilter:backdrop, border:`1px solid ${showStyles?theme.primary:border}`, color:showStyles?theme.primary:theme.textMuted, fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(0,0,0,0.4)" }}>⚙</button>
+      {showStyles && (<><div style={{ position:"fixed",inset:0,zIndex:595 }} onClick={()=>setShowStyles(false)}/><StylePicker styles={MOBILE_STYLES} current={mStyle} onSelect={setMStyle} theme={theme} isGlass={isGlass} border={border}/></>)}
+    </>
+  );
 
-  // ── HORIZONTAL ────────────────────────────────────────────
-  if (mStyle === "horizontal") {
-    return (
-      <>
-        <div style={{
-          position:"fixed", top:0, left:0, right:0, zIndex:200, height:50,
-          background:bg, backdropFilter:backdrop, WebkitBackdropFilter:backdrop,
-          borderBottom:`1px solid ${border}`,
-          display:"flex", alignItems:"center", gap:4, padding:"0 8px",
-          overflowX:"auto", scrollbarWidth:"none",
-        }}>
-          <button onClick={() => setShowStyles(s => !s)} style={{ background:"transparent", border:"none", color:theme.textMuted, fontSize:16, cursor:"pointer", flexShrink:0, padding:"4px 6px", borderRadius:6 }}>⚙</button>
-          {menuItems.map(item => (
-            <Link key={item.to} to={item.to} style={{
-              display:"flex", alignItems:"center", gap:4, padding:"5px 9px",
-              borderRadius:8, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0,
-              color:isActive(item.to)?"#fff":theme.textMuted,
-              background:isActive(item.to)?theme.primary:"transparent",
-              fontSize:12, fontWeight:isActive(item.to)?600:400,
-            }}>
-              <span style={{ fontSize:14 }}>{item.icon}</span>
-              <span>{item.label}</span>
-            </Link>
-          ))}
-        </div>
-        {showStyles && (
-          <>
-            <div style={{ position:"fixed",inset:0,zIndex:595 }} onClick={() => setShowStyles(false)}/>
-            <StylePicker styles={MOBILE_STYLES} current={mStyle} onSelect={setMStyle} theme={theme} isGlass={isGlass} border={border}/>
-          </>
-        )}
-      </>
-    );
-  }
+  if (mStyle==="horizontal") return (
+    <>
+      <div style={{ position:"fixed", top:0, left:0, right:0, zIndex:200, height:50, background:bg, backdropFilter:backdrop, WebkitBackdropFilter:backdrop, borderBottom:`1px solid ${border}`, display:"flex", alignItems:"center", gap:4, padding:"0 8px", overflowX:"auto", scrollbarWidth:"none" }}>
+        <button onClick={()=>setShowStyles(s=>!s)} style={{ background:"transparent", border:"none", color:theme.textMuted, fontSize:16, cursor:"pointer", flexShrink:0, padding:"4px 6px", borderRadius:6 }}>⚙</button>
+        {menuItems.map(item => (
+          <Link key={item.nfe?"__nfe__":item.to} to={item.to} style={{ display:"flex", alignItems:"center", gap:4, padding:"5px 9px", borderRadius:8, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0, color:item.nfe?"#d4af37":isActive(item.to)?"#fff":theme.textMuted, background:item.nfe?"rgba(212,175,55,0.12)":isActive(item.to)?theme.primary:"transparent", fontSize:12, fontWeight:item.nfe||isActive(item.to)?600:400, border:item.nfe?"1px solid rgba(212,175,55,0.3)":"none" }}>
+            <span style={{ fontSize:14 }}>{item.icon}</span>
+            <span>{item.label}</span>
+          </Link>
+        ))}
+      </div>
+      {showStyles && (<><div style={{ position:"fixed",inset:0,zIndex:595 }} onClick={()=>setShowStyles(false)}/><StylePicker styles={MOBILE_STYLES} current={mStyle} onSelect={setMStyle} theme={theme} isGlass={isGlass} border={border}/></>)}
+    </>
+  );
 
-  // ── PAINÉIS DESLIZANTES (vertical, right, bottom) ─────────
   const panelStyle = () => {
-    const base = {
-      position:"fixed", zIndex:160, background:bg,
-      backdropFilter:backdrop, WebkitBackdropFilter:backdrop,
-      display:"flex", flexDirection:"column",
-      transition:"transform 0.32s cubic-bezier(0.4,0,0.2,1)",
-      boxShadow:"0 8px 40px rgba(0,0,0,0.5)",
-    };
+    const base = { position:"fixed", zIndex:160, background:bg, backdropFilter:backdrop, WebkitBackdropFilter:backdrop, display:"flex", flexDirection:"column", transition:"transform 0.32s cubic-bezier(0.4,0,0.2,1)", boxShadow:"0 8px 40px rgba(0,0,0,0.5)" };
     if (mStyle==="right")  return { ...base, top:0, right:0, bottom:0, width:"80vw", maxWidth:300, borderLeft:`1px solid ${border}`,  transform:open?"translateX(0)":"translateX(100%)" };
     if (mStyle==="bottom") return { ...base, left:0, right:0, bottom:0, height:"78vh", borderTop:`1px solid ${border}`, borderRadius:"20px 20px 0 0", transform:open?"translateY(0)":"translateY(100%)" };
     return { ...base, top:0, left:0, bottom:0, width:"80vw", maxWidth:300, borderRight:`1px solid ${border}`, transform:open?"translateX(0)":"translateX(-100%)" };
   };
-
   const hamStyle = () => {
-    const base = {
-      position:"fixed", zIndex:300,
-      background:isGlass?"rgba(255,255,255,0.35)":bg,
-      backdropFilter:backdrop, WebkitBackdropFilter:backdrop,
-      border:`1px solid ${border}`, color:theme.textPrimary,
-      fontSize:20, width:46, height:46, cursor:"pointer",
-      display:"flex", alignItems:"center", justifyContent:"center",
-      boxShadow:"0 4px 16px rgba(0,0,0,0.4)", outline:"none",
-    };
+    const base = { position:"fixed", zIndex:300, background:isGlass?"rgba(255,255,255,0.35)":bg, backdropFilter:backdrop, WebkitBackdropFilter:backdrop, border:`1px solid ${border}`, color:theme.textPrimary, fontSize:20, width:46, height:46, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 16px rgba(0,0,0,0.4)", outline:"none" };
     if (mStyle==="right")  return { ...base, top:14, right:14, borderRadius:12 };
     if (mStyle==="bottom") return { ...base, bottom:20, left:"50%", transform:"translateX(-50%)", borderRadius:"50%" };
     return { ...base, top:14, left:14, borderRadius:12 };
@@ -677,49 +557,35 @@ function SidebarMobile({ menuItems, theme, isGlass }) {
 
   return (
     <>
-      <button onClick={() => setOpen(o => !o)} style={hamStyle()}>{open ? "✕" : "☰"}</button>
-
-      {open && (
-        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:150,backdropFilter:"blur(2px)" }}
-          onClick={() => setOpen(false)}/>
-      )}
-
+      <button onClick={()=>setOpen(o=>!o)} style={hamStyle()}>{open?"✕":"☰"}</button>
+      {open && <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:150,backdropFilter:"blur(2px)" }} onClick={()=>setOpen(false)}/>}
       <div style={panelStyle()}>
-        {/* Header */}
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 18px 14px",borderBottom:`1px solid ${border}`,flexShrink:0 }}>
           <span style={{ fontSize:16,fontWeight:700,color:theme.textPrimary,letterSpacing:1 }}>SV Finance</span>
           <div style={{ display:"flex",gap:8 }}>
-            <button onClick={() => setShowStyles(s => !s)} style={{ background:showStyles?`${theme.primary}22`:"transparent",border:`1px solid ${showStyles?theme.primary:border}`,color:showStyles?theme.primary:theme.textMuted,borderRadius:8,width:34,height:34,cursor:"pointer",fontSize:14 }}>⚙</button>
-            <button onClick={() => setOpen(false)} style={{ background:`${theme.primary}22`,border:"none",color:theme.textPrimary,borderRadius:8,width:34,height:34,cursor:"pointer",fontSize:16 }}>✕</button>
+            <button onClick={()=>setShowStyles(s=>!s)} style={{ background:showStyles?`${theme.primary}22`:"transparent",border:`1px solid ${showStyles?theme.primary:border}`,color:showStyles?theme.primary:theme.textMuted,borderRadius:8,width:34,height:34,cursor:"pointer",fontSize:14 }}>⚙</button>
+            <button onClick={()=>setOpen(false)} style={{ background:`${theme.primary}22`,border:"none",color:theme.textPrimary,borderRadius:8,width:34,height:34,cursor:"pointer",fontSize:16 }}>✕</button>
           </div>
         </div>
-
         {showStyles && <StylePicker styles={MOBILE_STYLES} current={mStyle} onSelect={setMStyle} theme={theme} isGlass={isGlass} border={border} inline/>}
-
-        {/* Links */}
         <div style={{ flex:1,padding:"12px",display:"flex",flexDirection:"column",gap:4,overflowY:"auto" }}>
           {menuItems.map(item => (
-            <Link key={item.to} to={item.to} onClick={() => setOpen(false)} style={{
+            <Link key={item.nfe?"__nfe__":item.to} to={item.to} onClick={()=>setOpen(false)} style={{
               display:"flex",alignItems:"center",gap:14,padding:"14px 16px",
-              borderRadius:12,textDecoration:"none",color:theme.textPrimary,
-              fontSize:15,fontWeight:isActive(item.to)?600:400,transition:"all 0.2s",
-              background:isActive(item.to)?(isGlass?"rgba(255,255,255,0.35)":theme.sidebarActive):"transparent",
-              border:isActive(item.to)?`1px solid ${border}`:"1px solid transparent",
+              borderRadius:12,textDecoration:"none",
+              color:item.nfe?"#d4af37":theme.textPrimary,
+              fontSize:15,fontWeight:item.nfe||isActive(item.to)?600:400,transition:"all 0.2s",
+              background:item.nfe?"rgba(212,175,55,0.1)":isActive(item.to)?(isGlass?"rgba(255,255,255,0.35)":theme.sidebarActive):"transparent",
+              border:item.nfe?"1px solid rgba(212,175,55,0.3)":isActive(item.to)?`1px solid ${border}`:"1px solid transparent",
             }}>
               <span style={{ fontSize:22 }}>{item.icon}</span>
               <span>{item.label}</span>
+              {item.nfe && <span style={{ marginLeft:"auto", fontSize:9, background:"#d4af37", color:"#000", borderRadius:4, padding:"1px 5px", fontWeight:700 }}>NF-e</span>}
             </Link>
           ))}
         </div>
-
-        {/* Sair */}
         <div style={{ padding:14,flexShrink:0 }}>
-          <button onClick={() => { logoutUser(); navigate("/"); }} style={{
-            width:"100%",padding:"14px 16px",
-            background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",
-            borderRadius:12,color:"#ef4444",fontSize:15,fontWeight:600,
-            cursor:"pointer",textAlign:"left",
-          }}>
+          <button onClick={()=>{logoutUser();navigate("/");}} style={{ width:"100%",padding:"14px 16px",background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:12,color:"#ef4444",fontSize:15,fontWeight:600,cursor:"pointer",textAlign:"left" }}>
             🚪 Sair
           </button>
         </div>
@@ -745,8 +611,8 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   }, []);
 
   if (isMobile) return <SidebarMobile menuItems={menuItems} theme={theme} isGlass={isGlass}/>;
-  if (style === "horizontal")   return <SidebarHorizontal menuItems={menuItems} theme={theme} isGlass={isGlass}/>;
-  if (style === "dock")         return <SidebarDock menuItems={menuItems} theme={theme} isGlass={isGlass} convex={true}/>;
-  if (style === "dock_concave") return <SidebarDock menuItems={menuItems} theme={theme} isGlass={isGlass} convex={false}/>;
+  if (style==="horizontal")   return <SidebarHorizontal menuItems={menuItems} theme={theme} isGlass={isGlass}/>;
+  if (style==="dock")         return <SidebarDock menuItems={menuItems} theme={theme} isGlass={isGlass} convex={true}/>;
+  if (style==="dock_concave") return <SidebarDock menuItems={menuItems} theme={theme} isGlass={isGlass} convex={false}/>;
   return <SidebarVertical menuItems={menuItems} theme={theme} isGlass={isGlass} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}/>;
 }
