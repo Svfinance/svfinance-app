@@ -232,8 +232,6 @@ export const THEMES = {
     emoji: "👗",
     description: "Streetwear — ideal para lojas de roupa",
     isGlassTheme: true,
-    // Coloque uma foto de loja de roupa em src/assets/fundofashion.jpg
-    // Sugestão: foto escura de araras de roupa, vitrine ou ambiente de loja streetwear
     bgImageAsset: "fundofashion.jpg",
     bgImageFallback: "#0a0a0a",
     bgOverlay: "rgba(0,0,0,0.65)",
@@ -250,7 +248,6 @@ export const THEMES = {
     borderInput:  "rgba(212,175,55,0.3)",
     borderActive: "rgba(212,175,55,0.7)",
 
-    // Dourado como cor primária — elegante e premium
     primary:       "#d4af37",
     primaryDark:   "#b8960c",
     primaryGrad:   "linear-gradient(135deg, #d4af37, #f0d060, #b8960c)",
@@ -284,112 +281,65 @@ export const THEMES = {
   },
 
   // ══════════════════════════════════════════════════════
-  // 💼 EXECUTIVE — Branco Profissional para Contadores
-  // Tema claro, limpo e sério — transmite confiança
+  // 🪟✨ CLEAN — Limpeza de Fachadas / Vidros
+  // Azul céu + branco cristalino + transparência total
+  // Identidade visual: vidro limpo, céu claro, confiança
   // ══════════════════════════════════════════════════════
-  executive: {
-    id: "executive",
-    name: "Executive White",
-    emoji: "💼",
-    description: "Tema claro profissional — contadores e empresas",
-    isGlassTheme: false,
+  clean: {
+    id: "clean",
+    name: "Clean & Vidro",
+    emoji: "🧼",
+    description: "Limpeza de fachadas — vidro, céu e transparência",
+    isGlassTheme: true,
+    // Coloque uma foto de fachada de vidro limpa em src/assets/fundoclean.jpg
+    // Sugestão: prédio com fachada de vidro refletindo o céu azul, foto externa
+    bgImageAsset: "fundoclean.jpg",
+    bgImageFallback: "#0c2340",
+    bgOverlay: "rgba(8,30,63,0.55)",
 
-    bgPrimary:   "#f8fafc",
-    bgSecondary: "#f1f5f9",
-    bgCard:      "#ffffff",
-    bgCardHover: "#f8fafc",
-    bgInput:     "#ffffff",
-    bgModal:     "#ffffff",
+    bgPrimary:   "transparent",
+    bgSecondary: "rgba(255,255,255,0.06)",
+    bgCard:      "rgba(255,255,255,0.10)",
+    bgCardHover: "rgba(255,255,255,0.18)",
+    bgInput:     "rgba(255,255,255,0.14)",
+    bgModal:     "rgba(8,30,63,0.88)",
 
-    border:       "rgba(0,0,0,0.08)",
-    borderCard:   "rgba(0,0,0,0.10)",
-    borderInput:  "rgba(0,0,0,0.15)",
-    borderActive: "rgba(15,98,254,0.5)",
+    border:       "rgba(147,210,255,0.2)",
+    borderCard:   "rgba(147,210,255,0.25)",
+    borderInput:  "rgba(147,210,255,0.35)",
+    borderActive: "rgba(56,189,248,0.7)",
 
-    primary:       "#0f62fe",
-    primaryDark:   "#0043ce",
-    primaryGrad:   "linear-gradient(135deg, #0f62fe, #0043ce)",
-    accent:        "#6929c4",
-    accentGrad:    "linear-gradient(135deg, #0043ce, #6929c4)",
+    // Azul céu vibrante como cor primária — limpo e confiável
+    primary:       "#0ea5e9",
+    primaryDark:   "#0284c7",
+    primaryGrad:   "linear-gradient(135deg, #0ea5e9, #38bdf8, #7dd3fc)",
+    accent:        "#38bdf8",
+    accentGrad:    "linear-gradient(135deg, #0284c7, #0ea5e9, #38bdf8)",
 
-    textPrimary:   "#161616",
-    textSecondary: "#525252",
-    textMuted:     "#8d8d8d",
-    textActive:    "#0f62fe",
-
-    income:  "#198038",
-    expense: "#da1e28",
-    warning: "#f1c21b",
-    purple:  "#6929c4",
-
-    sidebarBg:      "#ffffff",
-    sidebarActive:  "rgba(15,98,254,0.08)",
-    sidebarBorder:  "rgba(15,98,254,0.25)",
-    sidebarShadow:  "rgba(15,98,254,0.1)",
-
-    cardBorderTop:   "#0f62fe",
-    cardShadow:      "rgba(0,0,0,0.08)",
-    cardBackdrop:    "none",
-    sidebarBackdrop: "none",
-
-    mapOpacity: "0.04",
-    isLight: true,
-
-    chartColors: ["#0f62fe","#6929c4","#198038","#f1c21b","#da1e28","#9f1853","#005d5d","#8a3800"],
-  },
-
-  // ══════════════════════════════════════════════════════
-  // 🌿 NATURAL — Verde Terra para Orgânicos/Sustentável
-  // ══════════════════════════════════════════════════════
-  natural: {
-    id: "natural",
-    name: "Natural & Terra",
-    emoji: "🌿",
-    description: "Verde terra — orgânicos, saúde e bem-estar",
-    isGlassTheme: false,
-
-    bgPrimary:   "#0a1208",
-    bgSecondary: "#111a0e",
-    bgCard:      "rgba(255,255,255,0.04)",
-    bgCardHover: "rgba(255,255,255,0.07)",
-    bgInput:     "rgba(255,255,255,0.06)",
-    bgModal:     "rgba(10,18,8,0.96)",
-
-    border:       "rgba(134,188,66,0.15)",
-    borderCard:   "rgba(134,188,66,0.2)",
-    borderInput:  "rgba(134,188,66,0.25)",
-    borderActive: "rgba(134,188,66,0.6)",
-
-    primary:       "#86bc42",
-    primaryDark:   "#5a8a1a",
-    primaryGrad:   "linear-gradient(135deg, #86bc42, #5a8a1a)",
-    accent:        "#a8d460",
-    accentGrad:    "linear-gradient(135deg, #5a8a1a, #86bc42)",
-
-    textPrimary:   "#e8f5e0",
-    textSecondary: "#a8c890",
-    textMuted:     "#6a8a50",
-    textActive:    "#86bc42",
+    textPrimary:   "#f0f9ff",
+    textSecondary: "#bae6fd",
+    textMuted:     "#7cb8d4",
+    textActive:    "#38bdf8",
 
     income:  "#4ade80",
     expense: "#f87171",
     warning: "#fbbf24",
-    purple:  "#c084fc",
+    purple:  "#a78bfa",
 
-    sidebarBg:      "rgba(255,255,255,0.03)",
-    sidebarActive:  "rgba(134,188,66,0.12)",
-    sidebarBorder:  "rgba(134,188,66,0.28)",
-    sidebarShadow:  "rgba(134,188,66,0.08)",
+    sidebarBg:      "rgba(8,30,63,0.35)",
+    sidebarActive:  "rgba(14,165,233,0.18)",
+    sidebarBorder:  "rgba(56,189,248,0.4)",
+    sidebarShadow:  "rgba(14,165,233,0.15)",
 
-    cardBorderTop:   "#86bc42",
-    cardShadow:      "rgba(0,0,0,0.5)",
-    cardBackdrop:    "none",
-    sidebarBackdrop: "none",
+    cardBorderTop:   "#0ea5e9",
+    cardShadow:      "rgba(0,0,0,0.35)",
+    cardBackdrop:    "blur(20px) saturate(180%)",
+    sidebarBackdrop: "blur(28px) saturate(170%)",
 
-    mapOpacity: "0.06",
+    mapOpacity: "0",
     isLight: false,
 
-    chartColors: ["#86bc42","#a8d460","#4ade80","#fbbf24","#f87171","#c084fc","#38bdf8","#fb923c"],
+    chartColors: ["#0ea5e9","#38bdf8","#4ade80","#fbbf24","#f87171","#a78bfa","#34d399","#fb923c"],
   },
 };
 

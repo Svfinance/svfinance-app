@@ -14,21 +14,26 @@ export const NICHOS = {
     icon: "⚡",
     color: "#4f8ef7",
     desc: "Sistema completo para qualquer negócio",
+    defaultTheme: "blue",
     labels: {
-      orders:      "Pedidos",
-      order:       "Pedido",
-      newOrder:    "Novo Pedido",
-      orderPrefix: "PED",
+      orders:        "Pedidos",
+      order:         "Pedido",
+      newOrder:      "Novo Pedido",
+      orderPrefix:   "PED",
       servicePrefix: "OS",
-      clients:     "Clientes",
-      client:      "Cliente",
-      services:    "Serviços",
-      service:     "Serviço",
-      products:    "Produtos",
-      product:     "Produto",
-      sales:       "Vendas",
+      clients:       "Clientes",
+      client:        "Cliente",
+      services:      "Serviços",
+      service:       "Serviço",
+      products:      "Produtos",
+      product:       "Produto",
+      sales:         "Vendas",
     },
-    modules: ["dashboard","transactions","bills","analytics","dre","cashflow","products","quotes","orders","clients","team","commissions","goals","import","reports","settings"],
+    modules: [
+      "dashboard","transactions","bills","analytics","dre","cashflow",
+      "products","quotes","orders","clients","team","commissions",
+      "goals","import","reports","settings",
+    ],
   },
 
   contador: {
@@ -37,21 +42,25 @@ export const NICHOS = {
     icon: "🧮",
     color: "#4f8ef7",
     desc: "Multi-empresa, relatórios e importação",
+    defaultTheme: "blue",
     labels: {
-      orders:      "Serviços",
-      order:       "Serviço",
-      newOrder:    "Novo Serviço",
-      orderPrefix: "OS",
+      orders:        "Serviços",
+      order:         "Serviço",
+      newOrder:      "Novo Serviço",
+      orderPrefix:   "OS",
       servicePrefix: "OS",
-      clients:     "Empresas",
-      client:      "Empresa",
-      services:    "Serviços",
-      service:     "Serviço",
-      products:    "Serviços",
-      product:     "Serviço",
-      sales:       "Atendimentos",
+      clients:       "Empresas",
+      client:        "Empresa",
+      services:      "Serviços",
+      service:       "Serviço",
+      products:      "Serviços",
+      product:       "Serviço",
+      sales:         "Atendimentos",
     },
-    modules: ["dashboard","transactions","bills","analytics","dre","cashflow","quotes","orders","clients","team","goals","import","reports","settings"],
+    modules: [
+      "dashboard","transactions","bills","analytics","dre","cashflow",
+      "quotes","orders","clients","team","goals","import","reports","settings",
+    ],
   },
 
   barbeiro: {
@@ -60,21 +69,25 @@ export const NICHOS = {
     icon: "✂️",
     color: "#f59e0b",
     desc: "Caixa, comissões e clientes recorrentes",
+    defaultTheme: "aurora",
     labels: {
-      orders:      "Atendimentos",
-      order:       "Atendimento",
-      newOrder:    "Novo Atendimento",
-      orderPrefix: "AT",
+      orders:        "Atendimentos",
+      order:         "Atendimento",
+      newOrder:      "Novo Atendimento",
+      orderPrefix:   "AT",
       servicePrefix: "AT",
-      clients:     "Clientes",
-      client:      "Cliente",
-      services:    "Serviços",
-      service:     "Serviço",
-      products:    "Produtos / Serviços",
-      product:     "Item",
-      sales:       "Atendimentos",
+      clients:       "Clientes",
+      client:        "Cliente",
+      services:      "Serviços",
+      service:       "Serviço",
+      products:      "Produtos / Serviços",
+      product:       "Item",
+      sales:         "Atendimentos",
     },
-    modules: ["dashboard","transactions","bills","analytics","cashflow","products","orders","clients","team","commissions","goals","reports","settings"],
+    modules: [
+      "dashboard","transactions","bills","analytics","cashflow",
+      "products","orders","clients","team","commissions","goals","reports","settings",
+    ],
   },
 
   mototaxi: {
@@ -83,21 +96,25 @@ export const NICHOS = {
     icon: "🛵",
     color: "#22c55e",
     desc: "Corridas, entradas diárias e custos",
+    defaultTheme: "blue",
     labels: {
-      orders:      "Corridas",
-      order:       "Corrida",
-      newOrder:    "Nova Corrida",
-      orderPrefix: "COR",
+      orders:        "Corridas",
+      order:         "Corrida",
+      newOrder:      "Nova Corrida",
+      orderPrefix:   "COR",
       servicePrefix: "COR",
-      clients:     "Clientes",
-      client:      "Cliente",
-      services:    "Serviços",
-      service:     "Serviço",
-      products:    "Serviços",
-      product:     "Serviço",
-      sales:       "Corridas",
+      clients:       "Clientes",
+      client:        "Cliente",
+      services:      "Serviços",
+      service:       "Serviço",
+      products:      "Serviços",
+      product:       "Serviço",
+      sales:         "Corridas",
     },
-    modules: ["dashboard","transactions","bills","analytics","cashflow","orders","clients","goals","reports","settings"],
+    modules: [
+      "dashboard","transactions","bills","analytics","cashflow",
+      "orders","clients","goals","reports","settings",
+    ],
   },
 
   estetica: {
@@ -106,21 +123,25 @@ export const NICHOS = {
     icon: "💅",
     color: "#ec4899",
     desc: "Agendamentos, serviços e fluxo de caixa",
+    defaultTheme: "aurora",
     labels: {
-      orders:      "Agendamentos",
-      order:       "Agendamento",
-      newOrder:    "Novo Agendamento",
-      orderPrefix: "AG",
+      orders:        "Agendamentos",
+      order:         "Agendamento",
+      newOrder:      "Novo Agendamento",
+      orderPrefix:   "AG",
       servicePrefix: "AG",
-      clients:     "Clientes",
-      client:      "Cliente",
-      services:    "Serviços",
-      service:     "Serviço",
-      products:    "Serviços / Produtos",
-      product:     "Item",
-      sales:       "Agendamentos",
+      clients:       "Clientes",
+      client:        "Cliente",
+      services:      "Serviços",
+      service:       "Serviço",
+      products:      "Serviços / Produtos",
+      product:       "Item",
+      sales:         "Agendamentos",
     },
-    modules: ["dashboard","transactions","bills","cashflow","products","orders","clients","team","commissions","goals","reports","settings"],
+    modules: [
+      "dashboard","transactions","bills","cashflow",
+      "products","orders","clients","team","commissions","goals","reports","settings",
+    ],
   },
 
   restaurante: {
@@ -129,21 +150,25 @@ export const NICHOS = {
     icon: "🍔",
     color: "#ef4444",
     desc: "Estoque, vendas e DRE para food",
+    defaultTheme: "blue",
     labels: {
-      orders:      "Pedidos",
-      order:       "Pedido",
-      newOrder:    "Novo Pedido",
-      orderPrefix: "PED",
+      orders:        "Pedidos",
+      order:         "Pedido",
+      newOrder:      "Novo Pedido",
+      orderPrefix:   "PED",
       servicePrefix: "PED",
-      clients:     "Clientes",
-      client:      "Cliente",
-      services:    "Cardápio",
-      service:     "Item",
-      products:    "Cardápio / Insumos",
-      product:     "Item",
-      sales:       "Vendas",
+      clients:       "Clientes",
+      client:        "Cliente",
+      services:      "Cardápio",
+      service:       "Item",
+      products:      "Cardápio / Insumos",
+      product:       "Item",
+      sales:         "Vendas",
     },
-    modules: ["dashboard","transactions","bills","analytics","dre","cashflow","products","orders","clients","team","goals","reports","settings"],
+    modules: [
+      "dashboard","transactions","bills","analytics","dre","cashflow",
+      "products","orders","clients","team","goals","reports","settings",
+    ],
   },
 
   loja: {
@@ -152,21 +177,26 @@ export const NICHOS = {
     icon: "🛒",
     color: "#8b5cf6",
     desc: "Estoque, vendas e orçamentos",
+    defaultTheme: "fashion",
     labels: {
-      orders:      "Pedidos",
-      order:       "Pedido",
-      newOrder:    "Novo Pedido",
-      orderPrefix: "PED",
+      orders:        "Pedidos",
+      order:         "Pedido",
+      newOrder:      "Novo Pedido",
+      orderPrefix:   "PED",
       servicePrefix: "OS",
-      clients:     "Clientes",
-      client:      "Cliente",
-      services:    "Serviços",
-      service:     "Serviço",
-      products:    "Produtos",
-      product:     "Produto",
-      sales:       "Vendas",
+      clients:       "Clientes",
+      client:        "Cliente",
+      services:      "Serviços",
+      service:       "Serviço",
+      products:      "Produtos",
+      product:       "Produto",
+      sales:         "Vendas",
     },
-    modules: ["dashboard","transactions","bills","analytics","dre","cashflow","products","quotes","orders","clients","team","commissions","goals","import","reports","settings"],
+    modules: [
+      "dashboard","transactions","bills","analytics","dre","cashflow",
+      "products","quotes","orders","clients","team","commissions",
+      "goals","import","reports","settings",
+    ],
   },
 
   marceneiro: {
@@ -175,21 +205,70 @@ export const NICHOS = {
     icon: "🪵",
     color: "#92400e",
     desc: "Orçamentos, serviços e controle de custos",
+    defaultTheme: "gray",
     labels: {
-      orders:      "Ordens de Serviço",
-      order:       "Ordem de Serviço",
-      newOrder:    "Nova OS",
-      orderPrefix: "OS",
+      orders:        "Ordens de Serviço",
+      order:         "Ordem de Serviço",
+      newOrder:      "Nova OS",
+      orderPrefix:   "OS",
       servicePrefix: "OS",
-      clients:     "Clientes",
-      client:      "Cliente",
-      services:    "Serviços",
-      service:     "Serviço",
-      products:    "Materiais / Serviços",
-      product:     "Item",
-      sales:       "Serviços",
+      clients:       "Clientes",
+      client:        "Cliente",
+      services:      "Serviços",
+      service:       "Serviço",
+      products:      "Materiais / Serviços",
+      product:       "Item",
+      sales:         "Serviços",
     },
-    modules: ["dashboard","transactions","bills","cashflow","products","quotes","orders","clients","goals","reports","settings"],
+    modules: [
+      "dashboard","transactions","bills","cashflow",
+      "products","quotes","orders","clients","goals","reports","settings",
+    ],
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 🪟✨ LIMPEZA — Fachadas de Vidro / Limpeza Predial
+  // Tema CLEAN aplicado automaticamente no cadastro
+  // Módulos: OS, Orçamentos, Clientes, Equipe, Financeiro
+  // ══════════════════════════════════════════════════════
+  limpeza: {
+    key: "limpeza",
+    label: "Limpeza de Fachadas",
+    icon: "🪟",
+    color: "#0ea5e9",
+    desc: "OS, equipes, custos por serviço e faturamento",
+    defaultTheme: "clean", // ← aplica tema CLEAN automaticamente
+    labels: {
+      orders:        "Ordens de Serviço",
+      order:         "Ordem de Serviço",
+      newOrder:      "Nova OS",
+      orderPrefix:   "OS",
+      servicePrefix: "OS",
+      clients:       "Clientes",
+      client:        "Cliente",
+      services:      "Serviços",
+      service:       "Serviço",
+      products:      "Serviços / Insumos",
+      product:       "Item",
+      sales:         "Execuções",
+    },
+    modules: [
+      "dashboard",
+      "transactions",
+      "bills",
+      "analytics",
+      "cashflow",
+      "products",
+      "quotes",
+      "orders",
+      "clients",
+      "team",
+      "commissions",
+      "goals",
+      "import",
+      "reports",
+      "settings",
+    ],
   },
 }
 
@@ -217,15 +296,43 @@ export function NichoProvider({ children }) {
   }
 
   // Atualiza o nicho (chamar após login ou settings)
+  // Se o nicho tem defaultTheme e não há tema salvo manualmente,
+  // aplica o tema padrão do nicho automaticamente.
   function updateNicho(key) {
-    if (NICHOS[key]) {
-      setNichoKey(key)
-      localStorage.setItem("sv_nicho", key)
+    if (!NICHOS[key]) return
+    setNichoKey(key)
+    localStorage.setItem("sv_nicho", key)
+
+    // Aplica tema padrão do nicho se não houver preferência manual
+    const manualTheme = localStorage.getItem("sv_theme_manual") // flag de escolha manual
+    if (!manualTheme && NICHOS[key].defaultTheme) {
+      localStorage.setItem("sv_theme", NICHOS[key].defaultTheme)
+      // Dispara evento para o ThemeContext reagir
+      window.dispatchEvent(new CustomEvent("sv_theme_change", {
+        detail: { theme: NICHOS[key].defaultTheme }
+      }))
     }
   }
 
+  // Usuário escolheu o tema manualmente — salva flag para não sobrescrever
+  function setThemeManual(themeId) {
+    localStorage.setItem("sv_theme", themeId)
+    localStorage.setItem("sv_theme_manual", "1")
+    window.dispatchEvent(new CustomEvent("sv_theme_change", {
+      detail: { theme: themeId }
+    }))
+  }
+
   return (
-    <NichoContext.Provider value={{ nicho, nichoKey, label, hasModule, updateNicho, NICHOS }}>
+    <NichoContext.Provider value={{
+      nicho,
+      nichoKey,
+      label,
+      hasModule,
+      updateNicho,
+      setThemeManual,
+      NICHOS,
+    }}>
       {children}
     </NichoContext.Provider>
   )
