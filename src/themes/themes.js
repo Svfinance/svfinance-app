@@ -1,8 +1,5 @@
 export const THEMES = {
 
-  // ══════════════════════
-  // 🔵 AZUL / ROXO (padrão)
-  // ══════════════════════
   blue: {
     id: "blue",
     name: "Azul & Roxo",
@@ -45,9 +42,6 @@ export const THEMES = {
     chartColors: ["#3b82f6","#6366f1","#22c55e","#f59e0b","#ef4444","#a855f7","#ec4899","#14b8a6"],
   },
 
-  // ══════════════════════════════════════════════════
-  // 🪟 GLASS — Ultra Glassmorphism fundo gelo
-  // ══════════════════════════════════════════════════
   glass: {
     id: "glass",
     name: "Glass & Gelo",
@@ -93,9 +87,6 @@ export const THEMES = {
     chartColors: ["#1d4ed8","#4f46e5","#15803d","#b45309","#b91c1c","#6d28d9","#be185d","#0e7490"],
   },
 
-  // ══════════════════════════════════════
-  // 🌌 AURORA — Dark Glass Iridescente
-  // ══════════════════════════════════════
   aurora: {
     id: "aurora",
     name: "Aurora Glass",
@@ -138,9 +129,6 @@ export const THEMES = {
     chartColors: ["#38bdf8","#818cf8","#34d399","#fbbf24","#f87171","#c084fc","#ec4899","#2dd4bf"],
   },
 
-  // ══════════════════════════════════════════════════════
-  // ⚪ CINZA & PRATA — Glassmorphism Executivo
-  // ══════════════════════════════════════════════════════
   gray: {
     id: "gray",
     name: "Cinza & Prata",
@@ -186,9 +174,6 @@ export const THEMES = {
     chartColors: ["#94a3b8","#cbd5e1","#4ade80","#fbbf24","#f87171","#c084fc","#38bdf8","#fb923c"],
   },
 
-  // ══════════════════════════════════════════════════════
-  // 👗 FASHION — Streetwear / Loja de Roupa
-  // ══════════════════════════════════════════════════════
   fashion: {
     id: "fashion",
     name: "Fashion & Street",
@@ -236,10 +221,9 @@ export const THEMES = {
 
   // ══════════════════════════════════════════════════════
   // 🧼 CLEAN — RestauraGlass / Limpeza de Fachadas
-  // Verde profissional + branco cristalino + glass leve
-  // Fundo total: fundorestaura.jpg
-  // Cards brancos semitransparentes — texto escuro
-  // Hero removido no Dashboard — fundo cobre tudo
+  // Fundo: fundorestaura.jpg
+  // Cards brancos translúcidos — texto escuro — verde profissional
+  // Sem hero no Dashboard — sem mapa
   // ══════════════════════════════════════════════════════
   clean: {
     id: "clean",
@@ -249,39 +233,39 @@ export const THEMES = {
     isGlassTheme: true,
     isCleanTheme: true,
     bgImageAsset: "fundorestaura.jpg",
-    bgImageFallback: "#e8f5e9",
-    bgOverlay: "rgba(255,255,255,0.08)",
+    bgImageFallback: "#f0faf0",
+    bgOverlay: "rgba(240,255,240,0.08)",
     bgPrimary:   "transparent",
-    bgSecondary: "rgba(255,255,255,0.55)",
-    bgCard:      "rgba(255,255,255,0.62)",
-    bgCardHover: "rgba(255,255,255,0.82)",
-    bgInput:     "rgba(255,255,255,0.78)",
-    bgModal:     "rgba(255,255,255,0.97)",
-    border:       "rgba(22,163,74,0.14)",
-    borderCard:   "rgba(22,163,74,0.20)",
-    borderInput:  "rgba(22,163,74,0.28)",
-    borderActive: "rgba(21,128,61,0.65)",
+    bgSecondary: "rgba(255,255,255,0.70)",
+    bgCard:      "rgba(255,255,255,0.72)",
+    bgCardHover: "rgba(255,255,255,0.90)",
+    bgInput:     "rgba(255,255,255,0.85)",
+    bgModal:     "rgba(255,255,255,0.98)",
+    border:       "rgba(22,163,74,0.10)",
+    borderCard:   "rgba(22,163,74,0.15)",
+    borderInput:  "rgba(22,163,74,0.22)",
+    borderActive: "rgba(21,128,61,0.55)",
     primary:       "#16a34a",
     primaryDark:   "#15803d",
     primaryGrad:   "linear-gradient(135deg, #16a34a, #22c55e)",
     accent:        "#15803d",
     accentGrad:    "linear-gradient(135deg, #14532d, #16a34a, #22c55e)",
-    textPrimary:   "#0a1a0a",
-    textSecondary: "#1a3d1a",
-    textMuted:     "#3d6b4a",
+    textPrimary:   "#0f1a0f",
+    textSecondary: "#1f3d22",
+    textMuted:     "#4a7a50",
     textActive:    "#15803d",
     income:  "#15803d",
     expense: "#dc2626",
     warning: "#d97706",
     purple:  "#7c3aed",
-    sidebarBg:      "rgba(255,255,255,0.60)",
-    sidebarActive:  "rgba(22,163,74,0.14)",
-    sidebarBorder:  "rgba(22,163,74,0.38)",
-    sidebarShadow:  "rgba(22,163,74,0.10)",
+    sidebarBg:      "rgba(255,255,255,0.78)",
+    sidebarActive:  "rgba(22,163,74,0.10)",
+    sidebarBorder:  "rgba(22,163,74,0.30)",
+    sidebarShadow:  "rgba(22,163,74,0.06)",
     cardBorderTop:   "#16a34a",
-    cardShadow:      "rgba(0,0,0,0.07)",
-    cardBackdrop:    "blur(22px) saturate(180%)",
-    sidebarBackdrop: "blur(28px) saturate(180%)",
+    cardShadow:      "rgba(0,0,0,0.06)",
+    cardBackdrop:    "blur(24px) saturate(200%)",
+    sidebarBackdrop: "blur(28px) saturate(200%)",
     mapOpacity: "0",
     isLight: true,
     chartColors: ["#16a34a","#22c55e","#4ade80","#d97706","#dc2626","#7c3aed","#0ea5e9","#f59e0b"],
