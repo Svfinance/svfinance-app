@@ -2,7 +2,7 @@
 // Brand Studio SV Finance — Desktop + Mobile completo
 import { useState, useRef, useEffect, useCallback } from "react";
 
-const API = "https://finance-control-api-production.up.railway.app/api";
+const API = "https://api.svfinance.com.br/api";
 
 async function apiFetch(url, opts = {}) {
   const tkn = localStorage.getItem("token");

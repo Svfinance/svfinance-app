@@ -5,7 +5,7 @@ import { loginUser, registerUser, registerPersonalUser } from "../services/api"
 import { useNicho, NICHOS } from "../contexts/NichoContext"
 import logoImg from "../assets/logo.gif"
 
-const API = "https://finance-control-api-production.up.railway.app/api"
+const API = "https://api.svfinance.com.br/api"
 
 // ─────────────────────────────────────────────────────────────
 // CANVAS — NÚMEROS FLUTUANDO

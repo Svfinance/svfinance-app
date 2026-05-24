@@ -16,7 +16,7 @@ import {
   ResponsiveContainer, Tooltip, Legend
 } from "recharts";
 
-const API_URL = "https://finance-control-api-production.up.railway.app/api";
+const API_URL = "https://api.svfinance.com.br/api";
 
 function fmt(value) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
