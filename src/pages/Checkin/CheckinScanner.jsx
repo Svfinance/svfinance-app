@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useParams, useSearchParams, useNavigate } from "react-router-dom"
-import { BrowserMultiFormatReader, NotFoundException } from "@zxing/browser"
+import { BrowserMultiFormatReader } from "@zxing/browser"
 
 const API = "https://api.svfinance.com.br/api"
 
@@ -448,10 +448,7 @@ export default function CheckinScanner() {
           stopCamera()
           onQRDetected(result.getText())
         }
-        // NotFoundException é normal — frame sem QR, ignorar
-        if (err && !(err instanceof NotFoundException)) {
-          console.warn("ZXing decode error:", err)
-        }
+        // Erros de frame sem QR são normais — ignorar silenciosamente
       })
 
       setScannerStatus("active")
