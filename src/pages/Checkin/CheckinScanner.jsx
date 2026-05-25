@@ -1,73 +1,310 @@
 // src/pages/Checkin/CheckinScanner.jsx
-// Scanner usando html5-qrcode (biblioteca mais robusta do mercado)
-// + modo offline com confirmação manual
-// + fallback: digitar código manualmente se câmera falhar
+// Scanner QR Code — @zxing/browser (mais compatível com mobile)
+// Fallbacks: código numérico | PIN 4 dígitos | confirmar sem escanear
+// Offline-first com sync automático + geolocalização
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useParams, useSearchParams, useNavigate } from "react-router-dom"
-import { Html5Qrcode } from "html5-qrcode"
+import { BrowserMultiFormatReader, NotFoundException } from "@zxing/browser"
 
 const API = "https://api.svfinance.com.br/api"
-const SCANNER_ID = "sv-qr-reader"
+
+// ─── Utilitários ────────────────────────────────────────────────────────────
+
+function horaAtual() {
+  return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+}
+function dataAtual() {
+  return new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })
+}
+function isoNow() {
+  return new Date().toISOString()
+}
+
+// ─── Estilos ─────────────────────────────────────────────────────────────────
+
+const S = {
+  page: {
+    minHeight: "100dvh",
+    background: "linear-gradient(160deg, #060c1a 0%, #0d1b35 60%, #0a1220 100%)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "20px 16px",
+    fontFamily: "'DM Sans', sans-serif",
+    WebkitFontSmoothing: "antialiased",
+  },
+  card: {
+    width: "100%",
+    maxWidth: 420,
+    background: "rgba(15, 23, 42, 0.95)",
+    border: "1px solid rgba(79,142,247,0.12)",
+    borderRadius: 24,
+    padding: "24px 20px",
+    boxShadow: "0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04) inset",
+    backdropFilter: "blur(20px)",
+  },
+  brand: { textAlign: "center", marginBottom: 20 },
+  brandLogo: {
+    fontSize: 10,
+    fontWeight: 800,
+    letterSpacing: "4px",
+    color: "#4f8ef7",
+    textTransform: "uppercase",
+  },
+  brandSub: { fontSize: 11, color: "#475569", marginTop: 3 },
+  offlineBanner: {
+    background: "rgba(245,158,11,0.08)",
+    border: "1px solid rgba(245,158,11,0.25)",
+    borderRadius: 10,
+    padding: "8px 14px",
+    marginBottom: 14,
+    fontSize: 12,
+    color: "#f59e0b",
+    textAlign: "center",
+    fontWeight: 600,
+  },
+  clientBox: {
+    background: "rgba(79,142,247,0.06)",
+    border: "1px solid rgba(79,142,247,0.15)",
+    borderRadius: 14,
+    padding: "12px 16px",
+    marginBottom: 18,
+    textAlign: "center",
+  },
+  clientName: { color: "#e2e8f0", fontSize: "1rem", fontWeight: 700 },
+  clientSub: { color: "#475569", fontSize: 11, marginTop: 2 },
+  // Botões
+  btnBlue: {
+    width: "100%", padding: "14px 16px",
+    background: "linear-gradient(135deg, #4f8ef7 0%, #6366f1 100%)",
+    border: "none", borderRadius: 12, color: "#fff",
+    fontSize: 14, fontWeight: 700, cursor: "pointer",
+    fontFamily: "inherit", marginBottom: 10,
+    boxShadow: "0 4px 20px rgba(79,142,247,0.3)",
+    transition: "opacity .15s, transform .1s",
+  },
+  btnGreen: {
+    width: "100%", padding: "14px 16px",
+    background: "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)",
+    border: "none", borderRadius: 12, color: "#fff",
+    fontSize: 14, fontWeight: 700, cursor: "pointer",
+    fontFamily: "inherit", marginBottom: 10,
+    boxShadow: "0 4px 20px rgba(34,197,94,0.25)",
+    transition: "opacity .15s",
+  },
+  btnGhost: {
+    width: "100%", padding: "12px 16px",
+    background: "transparent",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: 12, color: "#64748b",
+    fontSize: 13, cursor: "pointer",
+    fontFamily: "inherit", marginBottom: 10,
+    transition: "border-color .15s, color .15s",
+  },
+  btnAmber: {
+    width: "100%", padding: "12px 16px",
+    background: "rgba(245,158,11,0.1)",
+    border: "1px solid rgba(245,158,11,0.3)",
+    borderRadius: 12, color: "#f59e0b",
+    fontSize: 13, fontWeight: 600, cursor: "pointer",
+    fontFamily: "inherit", marginBottom: 10,
+  },
+  btnRed: {
+    width: "100%", padding: "12px 16px",
+    background: "rgba(239,68,68,0.08)",
+    border: "1px solid rgba(239,68,68,0.25)",
+    borderRadius: 12, color: "#f87171",
+    fontSize: 13, fontWeight: 600, cursor: "pointer",
+    fontFamily: "inherit", marginBottom: 10,
+  },
+  errBox: {
+    background: "rgba(239,68,68,0.08)",
+    border: "1px solid rgba(239,68,68,0.25)",
+    color: "#f87171", padding: "10px 14px",
+    borderRadius: 10, fontSize: 13, marginBottom: 14,
+  },
+  successBox: {
+    background: "rgba(34,197,94,0.08)",
+    border: "1px solid rgba(34,197,94,0.2)",
+    color: "#4ade80", padding: "10px 14px",
+    borderRadius: 10, fontSize: 13, marginBottom: 14, textAlign: "center",
+  },
+  label: {
+    fontSize: 11, fontWeight: 700, letterSpacing: "1.5px",
+    textTransform: "uppercase", color: "#475569", marginBottom: 10,
+    display: "block",
+  },
+  input: {
+    width: "100%", padding: "12px 14px",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: 10, color: "#e2e8f0",
+    fontSize: 15, fontFamily: "inherit",
+    outline: "none", boxSizing: "border-box",
+    marginBottom: 14,
+    transition: "border-color .15s",
+  },
+  textarea: {
+    width: "100%", padding: "11px 13px",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: 10, color: "#e2e8f0",
+    fontSize: 14, fontFamily: "inherit",
+    outline: "none", boxSizing: "border-box",
+    marginBottom: 14, resize: "none",
+  },
+  divider: {
+    height: 1,
+    background: "rgba(255,255,255,0.05)",
+    margin: "16px 0",
+  },
+  footer: {
+    textAlign: "center", marginTop: 16, paddingTop: 12,
+    borderTop: "1px solid rgba(255,255,255,0.05)",
+  },
+  footerLink: { fontSize: 10, color: "#334155", textDecoration: "none" },
+}
+
+// ─── Componentes menores ─────────────────────────────────────────────────────
+
+function Brand({ offline }) {
+  return (
+    <div style={S.brand}>
+      <div style={S.brandLogo}>SV Finance</div>
+      <div style={S.brandSub}>Registro de Serviço</div>
+      {offline && (
+        <div style={{ marginTop: 6, fontSize: 10, color: "#f59e0b", fontWeight: 700, letterSpacing: "1px" }}>
+          📵 MODO OFFLINE
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ClientBox({ client }) {
+  if (!client) return null
+  return (
+    <div style={S.clientBox}>
+      <div style={S.clientName}>{client.name}</div>
+      {client.address && <div style={S.clientSub}>{client.address}</div>}
+    </div>
+  )
+}
+
+function ErrBox({ msg }) {
+  if (!msg) return null
+  return <div style={S.errBox}>⚠️ {msg}</div>
+}
+
+function OfflineBanner({ show }) {
+  if (!show) return null
+  return <div style={S.offlineBanner}>📵 Offline — será sincronizado depois</div>
+}
+
+function Spinner() {
+  return (
+    <div style={{ textAlign: "center", padding: "40px 0", color: "#475569" }}>
+      <div style={{
+        width: 32, height: 32, border: "3px solid rgba(79,142,247,0.2)",
+        borderTop: "3px solid #4f8ef7", borderRadius: "50%",
+        animation: "spin 0.8s linear infinite", margin: "0 auto 12px",
+      }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <div style={{ fontSize: 13 }}>Carregando...</div>
+    </div>
+  )
+}
+
+// ─── Componente principal ────────────────────────────────────────────────────
 
 export default function CheckinScanner() {
   const { clientId }   = useParams()
   const [searchParams] = useSearchParams()
   const navigate       = useNavigate()
 
-  const [step, setStep]             = useState("loading")
-  const [client, setClient]         = useState(null)
-  const [orders, setOrders]         = useState([])
+  // Estados de fluxo
+  const [step, setStep]               = useState("loading")
+  // Dados
+  const [client, setClient]           = useState(null)
+  const [orders, setOrders]           = useState([])
   const [selectedOrder, setSelectedOrder] = useState(null)
-  const [openCheckin, setOpen]      = useState(null)
-  const [action, setAction]         = useState(null)
-  const [location, setLocation]     = useState(null)
-  const [notes, setNotes]           = useState("")
-  const [result, setResult]         = useState(null)
-  const [error, setError]           = useState("")
-  const [sending, setSending]       = useState(false)
-  const [isOffline, setIsOffline]   = useState(!navigator.onLine)
-  const [showManual, setShowManual] = useState(false)
-  const [scannerReady, setScannerReady] = useState(false)
+  const [openCheckin, setOpenCheckin] = useState(null)
+  const [action, setAction]           = useState(null) // "start" | "finish"
+  // UI
+  const [error, setError]             = useState("")
+  const [sending, setSending]         = useState(false)
+  const [result, setResult]           = useState(null)
+  const [notes, setNotes]             = useState("")
+  // Scanner
+  const [scannerStatus, setScannerStatus] = useState("idle") // idle | starting | active | error
+  const [fallbackMode, setFallbackMode]   = useState(null)  // null | "code" | "pin" | "manual"
+  const [manualCode, setManualCode]       = useState("")
+  const [pinValue, setPinValue]           = useState("")
+  // Localização
+  const [location, setLocation]       = useState(null)
+  // Offline
+  const [isOffline, setIsOffline]     = useState(!navigator.onLine)
 
-  const scannerRef = useRef(null)
-  const token      = localStorage.getItem("token")
+  const videoRef    = useRef(null)
+  const readerRef   = useRef(null)
+  const streamRef   = useRef(null)
+  const fallbackTmr = useRef(null)
 
-  // ── Detecta modo offline ──────────────────────────────────
+  const token = localStorage.getItem("token")
+
+  // ── Offline detection ──────────────────────────────────────────────────────
   useEffect(() => {
-    const onOnline  = () => setIsOffline(false)
-    const onOffline = () => setIsOffline(true)
-    window.addEventListener("online",  onOnline)
-    window.addEventListener("offline", onOffline)
+    const on  = () => { setIsOffline(false); syncOffline() }
+    const off = () => setIsOffline(true)
+    window.addEventListener("online",  on)
+    window.addEventListener("offline", off)
     return () => {
-      window.removeEventListener("online",  onOnline)
-      window.removeEventListener("offline", onOffline)
+      window.removeEventListener("online",  on)
+      window.removeEventListener("offline", off)
     }
-  }, [])
+  }, [token])
 
-  // ── Auth + carrega dados ──────────────────────────────────
+  // ── Init ───────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!token) {
       localStorage.setItem("sv_redirect_after_login", window.location.pathname + window.location.search)
       navigate("/")
       return
     }
-    init()
     requestLocation()
-    return () => stopScanner()
+    loadData()
+    return () => {
+      stopCamera()
+      clearTimeout(fallbackTmr.current)
+    }
   }, [])
 
-  async function init() {
+  function requestLocation() {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      p => setLocation({ lat: p.coords.latitude, lon: p.coords.longitude }),
+      () => {},
+      { timeout: 10000, enableHighAccuracy: true }
+    )
+  }
+
+  async function loadData() {
+    setStep("loading")
+    setError("")
     try {
+      const headers = { Authorization: `Bearer ${token}` }
       const [resC, resO, resOpen] = await Promise.all([
-        fetch(`${API}/clients/${clientId}`,  { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API}/orders`,               { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API}/checkin/open`,         { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API}/clients/${clientId}`,  { headers }),
+        fetch(`${API}/orders`,               { headers }),
+        fetch(`${API}/checkin/open`,         { headers }),
       ])
 
       if (resC.status === 401) { navigate("/"); return }
 
-      const [dataC, dataO, dataOpen] = await Promise.all([resC.json(), resO.json(), resOpen.json()])
+      const [dataC, dataO, dataOpen] = await Promise.all([
+        resC.json(), resO.json(), resOpen.json()
+      ])
 
       setClient(dataC)
 
@@ -77,129 +314,212 @@ export default function CheckinScanner() {
       )
       setOrders(clientOrders)
 
-      if (dataOpen.open) setOpen(dataOpen)
+      if (dataOpen.open) setOpenCheckin(dataOpen)
 
       setStep("select_os")
     } catch {
-      if (isOffline) {
-        // Modo offline — permite continuar sem dados do servidor
+      if (!navigator.onLine) {
         setStep("offline_mode")
       } else {
-        setError("Erro ao carregar dados.")
+        setError("Não foi possível carregar os dados. Verifique a conexão.")
         setStep("error")
       }
     }
   }
 
-  function requestLocation() {
-    if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      pos => setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      () => {},
-      { timeout: 8000, enableHighAccuracy: true }
-    )
-  }
+  // ── Camera / ZXing ─────────────────────────────────────────────────────────
 
-  // ── Scanner html5-qrcode ──────────────────────────────────
-  async function startScanner() {
-    setScannerReady(false)
+  const stopCamera = useCallback(() => {
+    clearTimeout(fallbackTmr.current)
+    if (readerRef.current) {
+      try { readerRef.current.reset() } catch {}
+      readerRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+    setScannerStatus("idle")
+  }, [])
+
+  const startCamera = useCallback(async () => {
     setError("")
-    setShowManual(false)
+    setFallbackMode(null)
+    setScannerStatus("starting")
 
-    // Aguarda o elemento existir no DOM
-    await new Promise(r => setTimeout(r, 300))
+    // Aguarda o elemento de vídeo estar no DOM
+    await new Promise(r => setTimeout(r, 400))
+
+    if (!videoRef.current) {
+      setScannerStatus("error")
+      setError("Elemento de vídeo não encontrado.")
+      setFallbackMode("code")
+      return
+    }
 
     try {
-      const scanner = new Html5Qrcode(SCANNER_ID)
-      scannerRef.current = scanner
-
-      const config = {
-        fps: 15,
-        qrbox: { width: 220, height: 220 },
-        aspectRatio: 1.0,
-        disableFlip: false,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-      }
-
-      await scanner.start(
-        { facingMode: "environment" },
-        config,
-        (decodedText) => {
-          // QR detectado!
-          stopScanner()
-          onQRDetected(decodedText)
+      // Solicita câmera traseira explicitamente
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width:  { ideal: 1280 },
+          height: { ideal: 720 },
         },
-        () => {} // erro silencioso durante scan (frame sem QR)
-      )
+        audio: false,
+      })
+      streamRef.current = stream
+      videoRef.current.srcObject = stream
+      await videoRef.current.play()
 
-      setScannerReady(true)
+      const reader = new BrowserMultiFormatReader()
+      readerRef.current = reader
 
-      // Se não ler em 30 segundos, mostra opção manual
-      setTimeout(() => {
-        if (step === "scanning") setShowManual(true)
-      }, 30000)
+      reader.decodeFromVideoElement(videoRef.current, (result, err) => {
+        if (result) {
+          stopCamera()
+          onQRDetected(result.getText())
+        }
+        // NotFoundException é normal — frame sem QR, ignorar
+        if (err && !(err instanceof NotFoundException)) {
+          console.warn("ZXing decode error:", err)
+        }
+      })
+
+      setScannerStatus("active")
+
+      // Mostra botão de fallback após 25 segundos sem leitura
+      fallbackTmr.current = setTimeout(() => {
+        setScannerStatus(prev => prev === "active" ? "active" : prev)
+        setFallbackMode("code") // abre painel de fallback automaticamente
+      }, 25000)
 
     } catch (e) {
-      setError("Câmera não disponível. Use a entrada manual abaixo.")
-      setShowManual(true)
+      setScannerStatus("error")
+      const msg = e?.name === "NotAllowedError"
+        ? "Permissão de câmera negada. Use uma das opções abaixo."
+        : "Câmera não disponível neste dispositivo."
+      setError(msg)
+      setFallbackMode("code")
     }
-  }
+  }, [stopCamera])
 
-  function stopScanner() {
-    if (scannerRef.current) {
-      try {
-        scannerRef.current.stop().catch(() => {})
-        scannerRef.current.clear()
-      } catch {}
-      scannerRef.current = null
-    }
-  }
-
+  // Inicia/para câmera quando o step muda para "scanning"
   useEffect(() => {
-    if (step === "scanning") startScanner()
-    else stopScanner()
+    if (step === "scanning") {
+      startCamera()
+    } else {
+      stopCamera()
+    }
   }, [step])
 
-  // ── QR detectado ─────────────────────────────────────────
-  function onQRDetected(url) {
+  // ── QR detectado ──────────────────────────────────────────────────────────
+
+  function onQRDetected(text) {
     const pattern = `/checkin/${clientId}`
-    if (!url.includes(pattern)) {
-      setError("QR Code incorreto. Escaneie o adesivo deste cliente.")
+    if (!text.includes(pattern)) {
+      setError("QR Code incorreto. Use o adesivo deste cliente.")
       setStep("select_action")
       return
     }
+    setError("")
     setStep("confirming")
   }
 
-  // ── Entrada manual (fallback) ─────────────────────────────
+  // ── Fallbacks ──────────────────────────────────────────────────────────────
+
+  // Fallback 1: código numérico (ID do cliente)
+  function handleCodeConfirm() {
+    const expected = String(clientId)
+    if (manualCode.trim() !== expected) {
+      setError(`Código incorreto. O código deste cliente é ${expected}.`)
+      return
+    }
+    stopCamera()
+    setError("")
+    setFallbackMode(null)
+    setStep("confirming")
+  }
+
+  // Fallback 2: PIN de 4 dígitos cadastrado no cliente
+  // (PIN = últimos 4 do ID com padding: ex. cliente 32 → "0032")
+  function handlePinConfirm() {
+    const expectedPin = String(clientId).padStart(4, "0")
+    if (pinValue.trim() !== expectedPin) {
+      setError("PIN incorreto. Solicite ao ADM.")
+      return
+    }
+    stopCamera()
+    setError("")
+    setFallbackMode(null)
+    setStep("confirming")
+  }
+
+  // Fallback 3: confirmar sem escanear (ADM revisa depois)
   function handleManualConfirm() {
-    // Se câmera falhar, permite confirmar diretamente sem QR
-    stopScanner()
+    stopCamera()
+    setError("")
+    setFallbackMode(null)
     setStep("confirming")
   }
 
-  // ── Confirma check-in/out ─────────────────────────────────
+  // ── Offline sync ──────────────────────────────────────────────────────────
+
+  async function syncOffline() {
+    const pending = JSON.parse(localStorage.getItem("sv_offline_checkins") || "[]")
+      .filter(i => !i.synced)
+    if (!pending.length || !token) return
+
+    const updated = await Promise.all(pending.map(async item => {
+      try {
+        if (item.type === "start") {
+          await fetch(`${API}/checkin/${item.clientId}/start`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              order_id: item.orderId || null,
+              notes:    item.notes   || null,
+              lat:      item.location?.lat,
+              lon:      item.location?.lon,
+            }),
+          })
+        }
+        return { ...item, synced: true }
+      } catch {
+        return item
+      }
+    }))
+
+    const remaining = [
+      ...updated.filter(i => !i.synced),
+      ...(JSON.parse(localStorage.getItem("sv_offline_checkins") || "[]")
+          .filter(i => i.synced)),
+    ]
+    localStorage.setItem("sv_offline_checkins", JSON.stringify(remaining))
+  }
+
+  // ── Confirmar check-in/out ────────────────────────────────────────────────
+
   async function handleConfirm() {
     setSending(true)
     setError("")
 
-    // Modo offline — salva localmente
+    // Modo offline
     if (isOffline) {
-      const offlineData = {
+      const record = {
         type:       action,
         clientId,
         clientName: client?.name || "Cliente",
-        orderId:    selectedOrder?.id,
-        orderNum:   selectedOrder?.number,
-        timestamp:  new Date().toISOString(),
+        orderId:    selectedOrder?.id   || null,
+        orderNum:   selectedOrder?.number || null,
+        timestamp:  isoNow(),
         notes,
         location,
-        synced:     false,
+        synced: false,
       }
-      const existing = JSON.parse(localStorage.getItem("sv_offline_checkins") || "[]")
-      existing.push(offlineData)
-      localStorage.setItem("sv_offline_checkins", JSON.stringify(existing))
-      setResult({ action, offline: true, timestamp: offlineData.timestamp })
+      const list = JSON.parse(localStorage.getItem("sv_offline_checkins") || "[]")
+      list.push(record)
+      localStorage.setItem("sv_offline_checkins", JSON.stringify(list))
+      setResult({ action, offline: true, timestamp: record.timestamp })
       setStep("success")
       setSending(false)
       return
@@ -210,194 +530,175 @@ export default function CheckinScanner() {
 
       if (action === "start") {
         res = await fetch(`${API}/checkin/${clientId}/start`, {
-          method:  "POST",
+          method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
             order_id: selectedOrder?.id || null,
-            lat:      location?.lat,
-            lon:      location?.lon,
-            notes:    notes || null,
+            lat:      location?.lat     || null,
+            lon:      location?.lon     || null,
+            notes:    notes             || null,
           }),
         })
-        data = await res.json()
-        if (!res.ok) { setError(data.msg || "Erro."); setSending(false); return }
-        setResult({ ...data, action: "start" })
-
       } else {
         res = await fetch(`${API}/checkin/${openCheckin.checkin_id}/finish`, {
-          method:  "POST",
+          method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ lat: location?.lat, lon: location?.lon, notes: notes || null }),
+          body: JSON.stringify({
+            lat:   location?.lat || null,
+            lon:   location?.lon || null,
+            notes: notes         || null,
+          }),
         })
-        data = await res.json()
-        if (!res.ok) { setError(data.msg || "Erro."); setSending(false); return }
-        setResult({ ...data, action: "finish" })
       }
 
+      data = await res.json()
+
+      if (!res.ok) {
+        setError(data.msg || "Erro ao registrar.")
+        setSending(false)
+        return
+      }
+
+      setResult({ ...data, action })
       setStep("success")
+
     } catch {
-      // Sem internet → salva offline
       if (!navigator.onLine) {
         setIsOffline(true)
+        // Chama novamente já no modo offline
+        setSending(false)
         handleConfirm()
       } else {
         setError("Erro de conexão. Tente novamente.")
+        setSending(false)
       }
     } finally {
       setSending(false)
     }
   }
 
-  // ── Sincroniza registros offline ──────────────────────────
-  async function syncOfflineCheckins() {
-    const pending = JSON.parse(localStorage.getItem("sv_offline_checkins") || "[]")
-    if (pending.length === 0) return
+  // ── Reset / novo serviço ──────────────────────────────────────────────────
 
-    const synced = []
-    for (const item of pending) {
-      try {
-        if (item.type === "start") {
-          await fetch(`${API}/checkin/${item.clientId}/start`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ order_id: item.orderId, notes: item.notes, lat: item.location?.lat, lon: item.location?.lon }),
-          })
-        }
-        synced.push({ ...item, synced: true })
-      } catch {
-        synced.push(item)
-      }
-    }
-    localStorage.setItem("sv_offline_checkins", JSON.stringify(synced.filter(i => !i.synced)))
+  function resetFlow() {
+    setResult(null)
+    setNotes("")
+    setSelectedOrder(null)
+    setOpenCheckin(null)
+    setAction(null)
+    setError("")
+    setFallbackMode(null)
+    setManualCode("")
+    setPinValue("")
+    loadData()
   }
 
-  useEffect(() => {
-    if (!isOffline) syncOfflineCheckins()
-  }, [isOffline])
+  // ══════════════════════════════════════════════════════════════════════════
+  //  RENDERS POR STEP
+  // ══════════════════════════════════════════════════════════════════════════
 
-  // ── Hora ─────────────────────────────────────────────────
-  const now     = new Date()
-  const horaFmt = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
-  const dataFmt = now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })
-
-  // ── Estilos ───────────────────────────────────────────────
-  const S = {
-    page:   { minHeight: "100vh", background: "#0a0f1e", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px 16px", fontFamily: "'DM Sans',sans-serif" },
-    card:   { width: "100%", maxWidth: 420, background: "#111827", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 24, padding: "24px 20px", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" },
-    brand:  { textAlign: "center", marginBottom: 18 },
-    brandT: { fontSize: 11, fontWeight: 700, letterSpacing: "3px", color: "#4f8ef7", textTransform: "uppercase" },
-    brandS: { fontSize: 11, color: "#6b7fa3", marginTop: 2 },
-    clientB:{ background: "rgba(79,142,247,0.08)", border: "1px solid rgba(79,142,247,0.2)", borderRadius: 14, padding: "12px 14px", marginBottom: 16, textAlign: "center" },
-    clientN:{ color: "#f0f4ff", fontSize: "1rem", fontWeight: 700 },
-    btnP:   { width: "100%", padding: 15, background: "linear-gradient(135deg,#4f8ef7,#7c3aed)", border: "none", borderRadius: 12, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginBottom: 10, boxShadow: "0 4px 20px rgba(79,142,247,0.35)" },
-    btnG:   { width: "100%", padding: 15, background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 12, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginBottom: 10 },
-    btnS:   { width: "100%", padding: 12, background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, color: "#6b7fa3", fontSize: 13, cursor: "pointer", fontFamily: "inherit", marginBottom: 10 },
-    btnY:   { width: "100%", padding: 13, background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 12, color: "#f59e0b", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 10 },
-    err:    { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 14 },
-    offline:{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", color: "#f59e0b", padding: "8px 12px", borderRadius: 8, fontSize: 12, marginBottom: 14, textAlign: "center" },
-    badge:  (c) => ({ display: "inline-block", padding: "4px 14px", borderRadius: 20, fontSize: 10, fontWeight: 700, background: `${c}20`, color: c, marginBottom: 12, letterSpacing: "1px", textTransform: "uppercase" }),
-    footer: { textAlign: "center", marginTop: 16, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" },
-  }
-
-  function Brand() {
-    return (
-      <div style={S.brand}>
-        <div style={S.brandT}>SV Finance</div>
-        <div style={S.brandS}>Registro de Serviço</div>
-        {isOffline && <div style={{ marginTop: 6, fontSize: 10, color: "#f59e0b", fontWeight: 700 }}>📵 MODO OFFLINE</div>}
-      </div>
-    )
-  }
-
-  function ClientCard() {
-    return client ? (
-      <div style={S.clientB}>
-        <div style={S.clientN}>{client.name}</div>
-        {client.address && <div style={{ color: "#6b7fa3", fontSize: 11, marginTop: 2 }}>{client.address}</div>}
-      </div>
-    ) : null
-  }
-
-  // ══════════════════════════════════════════════════════════
-
+  // ── Loading ───────────────────────────────────────────────────────────────
   if (step === "loading") return (
     <div style={S.page}><div style={S.card}>
-      <Brand />
-      <div style={{ textAlign: "center", color: "#6b7fa3", padding: "40px 0" }}>⏳ Carregando...</div>
+      <Brand offline={isOffline} />
+      <Spinner />
     </div></div>
   )
 
+  // ── Erro ──────────────────────────────────────────────────────────────────
   if (step === "error") return (
     <div style={S.page}><div style={S.card}>
-      <Brand />
-      <div style={{ textAlign: "center", padding: "30px 0" }}>
-        <div style={{ fontSize: 36, marginBottom: 12 }}>❌</div>
-        <div style={{ color: "#f87171", marginBottom: 20 }}>{error}</div>
-        <button style={S.btnS} onClick={init}>Tentar novamente</button>
+      <Brand offline={isOffline} />
+      <div style={{ textAlign: "center", padding: "24px 0" }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>😕</div>
+        <div style={{ color: "#f87171", marginBottom: 6, fontSize: 14 }}>{error}</div>
+        <div style={{ color: "#475569", fontSize: 12, marginBottom: 20 }}>
+          Se o problema persistir, aguarde ~50 segundos (servidor pode estar a dormir).
+        </div>
+        <button style={S.btnBlue} onClick={loadData}>↺ Tentar novamente</button>
+      </div>
+      <div style={S.footer}>
+        <a href="https://svfinance.com.br" style={S.footerLink}>svfinance.com.br</a>
       </div>
     </div></div>
   )
 
+  // ── Offline mode (sem dados) ──────────────────────────────────────────────
   if (step === "offline_mode") return (
     <div style={S.page}><div style={S.card}>
-      <Brand />
-      <div style={S.offline}>📵 Sem conexão — modo offline ativo</div>
-      <div style={{ textAlign: "center", marginBottom: 20, color: "#6b7fa3", fontSize: 13 }}>
-        O registro será salvo localmente e sincronizado quando houver internet.
+      <Brand offline />
+      <div style={S.offlineBanner}>📵 Sem conexão — modo offline ativo</div>
+      <div style={{ color: "#64748b", fontSize: 13, marginBottom: 20, textAlign: "center" }}>
+        O registro será salvo localmente e sincronizado automaticamente quando houver internet.
       </div>
-      <button style={S.btnP} onClick={() => { setAction("start"); setStep("scanning") }}>
+      <button style={S.btnBlue} onClick={() => { setAction("start"); setStep("scanning") }}>
         📍 Registrar entrada (offline)
       </button>
-      <button style={S.btnS} onClick={init}>Tentar reconectar</button>
+      <button style={S.btnGhost} onClick={loadData}>↺ Tentar reconectar</button>
     </div></div>
   )
 
+  // ── Selecionar OS ─────────────────────────────────────────────────────────
   if (step === "select_os") return (
     <div style={S.page}><div style={S.card}>
-      <Brand /><ClientCard />
+      <Brand offline={isOffline} />
+      <ClientBox client={client} />
+      {isOffline && <OfflineBanner show />}
 
-      {isOffline && <div style={S.offline}>📵 Modo offline — dados podem estar desatualizados</div>}
-
-      <div style={{ color: "#6b7fa3", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 12 }}>
-        Selecione a O.S do dia
-      </div>
+      <span style={S.label}>Selecione a O.S do dia</span>
 
       {orders.length === 0 ? (
-        <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 12, padding: 16, textAlign: "center", color: "#f59e0b", fontSize: 13, marginBottom: 16 }}>
-          ⚠️ Nenhuma O.S aberta para este cliente.
-          <div style={{ color: "#6b7fa3", fontSize: 11, marginTop: 4 }}>Peça ao ADM para criar uma O.S.</div>
+        <div style={{
+          background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.2)",
+          borderRadius: 12, padding: 16, textAlign: "center", marginBottom: 16,
+        }}>
+          <div style={{ color: "#f59e0b", fontSize: 14, fontWeight: 600 }}>⚠️ Nenhuma O.S aberta</div>
+          <div style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>
+            Peça ao ADM para criar uma O.S para este cliente.
+          </div>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-          {orders.map(o => (
-            <div key={o.id} onClick={() => setSelectedOrder(o)} style={{
-              background: selectedOrder?.id === o.id ? "rgba(79,142,247,0.15)" : "rgba(255,255,255,0.04)",
-              border: `2px solid ${selectedOrder?.id === o.id ? "#4f8ef7" : "rgba(255,255,255,0.08)"}`,
-              borderRadius: 12, padding: "14px 16px", cursor: "pointer", transition: "all 0.2s",
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ color: "#4f8ef7", fontWeight: 700, fontSize: 14 }}>{o.number}</div>
-                  <div style={{ color: "#6b7fa3", fontSize: 11, marginTop: 2 }}>
-                    {o.items?.length || 0} {o.items?.length === 1 ? "item" : "itens"}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+          {orders.map(o => {
+            const sel = selectedOrder?.id === o.id
+            return (
+              <div
+                key={o.id}
+                onClick={() => setSelectedOrder(o)}
+                style={{
+                  background: sel ? "rgba(79,142,247,0.1)" : "rgba(255,255,255,0.03)",
+                  border: `2px solid ${sel ? "#4f8ef7" : "rgba(255,255,255,0.07)"}`,
+                  borderRadius: 12, padding: "13px 15px", cursor: "pointer",
+                  transition: "all .15s",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ color: "#4f8ef7", fontWeight: 700, fontSize: 14 }}>{o.number}</div>
+                    <div style={{ color: "#475569", fontSize: 11, marginTop: 2 }}>
+                      {o.description || `${o.items?.length || 0} ${o.items?.length === 1 ? "item" : "itens"}`}
+                    </div>
                   </div>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                  <div style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, fontWeight: 700, background: o.status === "in_progress" ? "rgba(245,158,11,0.2)" : "rgba(59,130,246,0.2)", color: o.status === "in_progress" ? "#f59e0b" : "#3b82f6" }}>
-                    {o.status === "in_progress" ? "Em andamento" : "Aberta"}
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                    <span style={{
+                      fontSize: 10, padding: "3px 9px", borderRadius: 20, fontWeight: 700,
+                      background: o.status === "in_progress" ? "rgba(245,158,11,0.15)" : "rgba(79,142,247,0.15)",
+                      color: o.status === "in_progress" ? "#f59e0b" : "#4f8ef7",
+                    }}>
+                      {o.status === "in_progress" ? "Em andamento" : "Aberta"}
+                    </span>
+                    {sel && <span style={{ color: "#4f8ef7", fontSize: 15 }}>✓</span>}
                   </div>
-                  {selectedOrder?.id === o.id && <div style={{ fontSize: 14 }}>✓</div>}
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
-      {error && <div style={S.err}>⚠️ {error}</div>}
+      <ErrBox msg={error} />
 
       <button
-        style={{ ...S.btnP, opacity: (orders.length > 0 && !selectedOrder) ? 0.5 : 1 }}
+        style={{ ...S.btnBlue, opacity: (orders.length > 0 && !selectedOrder) ? 0.45 : 1 }}
         onClick={() => (orders.length === 0 || selectedOrder) && setStep("select_action")}
         disabled={orders.length > 0 && !selectedOrder}
       >
@@ -405,177 +706,377 @@ export default function CheckinScanner() {
       </button>
 
       <div style={S.footer}>
-        <a href="https://svfinance.com.br" style={{ fontSize: 10, color: "#6b7fa3", textDecoration: "none" }}>
-          svfinance.com.br
-        </a>
+        <a href="https://svfinance.com.br" style={S.footerLink}>svfinance.com.br</a>
       </div>
     </div></div>
   )
 
+  // ── Selecionar ação ───────────────────────────────────────────────────────
   if (step === "select_action") return (
     <div style={S.page}><div style={S.card}>
-      <Brand /><ClientCard />
+      <Brand offline={isOffline} />
+      <ClientBox client={client} />
 
-      <div style={{ textAlign: "center", marginBottom: 16 }}>
-        <div style={{ fontSize: "1.8rem", fontWeight: 700, color: "#f0f4ff" }}>{horaFmt}</div>
-        <div style={{ fontSize: 12, color: "#6b7fa3", textTransform: "capitalize" }}>{dataFmt}</div>
-        {selectedOrder && <div style={{ marginTop: 6, fontSize: 12, color: "#4f8ef7", fontWeight: 600 }}>O.S: {selectedOrder.number}</div>}
+      <div style={{ textAlign: "center", marginBottom: 18 }}>
+        <div style={{ fontSize: "2rem", fontWeight: 700, color: "#e2e8f0", letterSpacing: "-1px" }}>
+          {horaAtual()}
+        </div>
+        <div style={{ fontSize: 12, color: "#475569", textTransform: "capitalize" }}>{dataAtual()}</div>
+        {selectedOrder && (
+          <div style={{ marginTop: 6, fontSize: 12, color: "#4f8ef7", fontWeight: 600 }}>
+            O.S: {selectedOrder.number}
+          </div>
+        )}
       </div>
 
-      {isOffline && <div style={S.offline}>📵 Offline — será sincronizado depois</div>}
-      {error && <div style={S.err}>⚠️ {error}</div>}
+      <OfflineBanner show={isOffline} />
+      <ErrBox msg={error} />
 
       {openCheckin ? (
         <>
-          <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 12, padding: 14, marginBottom: 16, textAlign: "center" }}>
+          <div style={{
+            background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.2)",
+            borderRadius: 12, padding: 14, marginBottom: 16, textAlign: "center",
+          }}>
             <div style={{ color: "#f59e0b", fontWeight: 700, fontSize: 13 }}>⏱️ Serviço em andamento</div>
-            <div style={{ color: "#6b7fa3", fontSize: 12, marginTop: 4 }}>
+            <div style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>
               Entrada: {openCheckin.checkin_at?.slice(11, 16)}
               {openCheckin.order_number && ` · ${openCheckin.order_number}`}
             </div>
           </div>
-          <button style={S.btnG} onClick={() => { setAction("finish"); setStep("scanning") }}>
-            ✅ Finalizar — Escanear QR Code
+          <button style={S.btnGreen} onClick={() => { setAction("finish"); setStep("scanning") }}>
+            ✅ Finalizar serviço — Escanear QR
           </button>
         </>
       ) : (
-        <button style={S.btnP} onClick={() => { setAction("start"); setStep("scanning") }}>
-          📍 Iniciar — Escanear QR Code
+        <button style={S.btnBlue} onClick={() => { setAction("start"); setStep("scanning") }}>
+          📍 Iniciar serviço — Escanear QR
         </button>
       )}
 
-      <button style={S.btnS} onClick={() => setStep("select_os")}>← Voltar</button>
+      <button style={S.btnGhost} onClick={() => setStep("select_os")}>← Voltar</button>
     </div></div>
   )
 
+  // ── Scanner ───────────────────────────────────────────────────────────────
   if (step === "scanning") return (
-    <div style={S.page}><div style={{ ...S.card, padding: "20px 16px" }}>
-      <Brand />
+    <div style={S.page}>
+      <div style={{ ...S.card, padding: "20px 16px" }}>
+        <Brand offline={isOffline} />
 
-      <div style={{ textAlign: "center", marginBottom: 12 }}>
-        <div style={S.badge(action === "start" ? "#4f8ef7" : "#22c55e")}>
-          {action === "start" ? "📍 CHECK-IN · ENTRADA" : "✅ CHECK-OUT · SAÍDA"}
+        {/* Cabeçalho da ação */}
+        <div style={{ textAlign: "center", marginBottom: 14 }}>
+          <span style={{
+            display: "inline-block", padding: "4px 16px", borderRadius: 20,
+            fontSize: 10, fontWeight: 800, letterSpacing: "1.5px", textTransform: "uppercase",
+            background: action === "start" ? "rgba(79,142,247,0.15)" : "rgba(34,197,94,0.15)",
+            color:      action === "start" ? "#4f8ef7"               : "#22c55e",
+            marginBottom: 6,
+          }}>
+            {action === "start" ? "📍 CHECK-IN · ENTRADA" : "✅ CHECK-OUT · SAÍDA"}
+          </span>
+          <div style={{ color: "#475569", fontSize: 12 }}>
+            {scannerStatus === "active"
+              ? "Aponte para o QR Code fixo na vitrine"
+              : scannerStatus === "starting"
+              ? "Iniciando câmera..."
+              : "Use uma das opções abaixo"}
+          </div>
         </div>
-        <div style={{ color: "#6b7fa3", fontSize: 12 }}>
-          Aponte para o QR Code fixo na vitrine
+
+        <ErrBox msg={error} />
+
+        {/* Viewfinder da câmera — sempre renderiza o <video> para ZXing encontrar */}
+        <div style={{
+          position: "relative", borderRadius: 16, overflow: "hidden",
+          marginBottom: 12, background: "#000",
+          display: scannerStatus === "error" && !error ? "none" : "block",
+          // Esconde se câmera deu erro mas mantém no DOM
+          opacity: scannerStatus === "error" ? 0 : 1,
+          height: scannerStatus === "error" ? 0 : "auto",
+        }}>
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            style={{ width: "100%", display: "block", maxHeight: 280, objectFit: "cover" }}
+          />
+
+          {/* Overlay com mira */}
+          {scannerStatus === "active" && (
+            <div style={{
+              position: "absolute", inset: 0, display: "flex",
+              alignItems: "center", justifyContent: "center",
+              pointerEvents: "none",
+            }}>
+              <div style={{
+                width: 200, height: 200, position: "relative",
+              }}>
+                {/* Cantos da mira */}
+                {[
+                  { top: 0, left: 0, borderTop: "3px solid #4f8ef7", borderLeft: "3px solid #4f8ef7" },
+                  { top: 0, right: 0, borderTop: "3px solid #4f8ef7", borderRight: "3px solid #4f8ef7" },
+                  { bottom: 0, left: 0, borderBottom: "3px solid #4f8ef7", borderLeft: "3px solid #4f8ef7" },
+                  { bottom: 0, right: 0, borderBottom: "3px solid #4f8ef7", borderRight: "3px solid #4f8ef7" },
+                ].map((style, i) => (
+                  <div key={i} style={{
+                    position: "absolute", width: 24, height: 24, ...style
+                  }} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Overlay de loading */}
+          {scannerStatus === "starting" && (
+            <div style={{
+              position: "absolute", inset: 0, background: "rgba(0,0,0,0.7)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <div style={{ color: "#64748b", fontSize: 13 }}>⏳ Abrindo câmera...</div>
+            </div>
+          )}
         </div>
-      </div>
 
-      {error && <div style={S.err}>⚠️ {error}</div>}
+        {/* ── Painel de fallbacks ── */}
+        {(scannerStatus === "error" || fallbackMode !== null) && (
+          <div style={{
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: 14, padding: 16, marginBottom: 12,
+          }}>
+            <div style={{ color: "#64748b", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 12 }}>
+              Alternativas
+            </div>
 
-      {/* Container do scanner html5-qrcode */}
-      <div
-        id={SCANNER_ID}
-        style={{
-          borderRadius: 16,
-          overflow: "hidden",
-          marginBottom: 14,
-          background: "#000",
-          minHeight: 260,
-        }}
-      />
+            {/* Tabs de fallback */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+              {[
+                { id: "code",   label: "🔢 Código" },
+                { id: "pin",    label: "🔑 PIN" },
+                { id: "manual", label: "⚡ Direto" },
+              ].map(({ id, label }) => (
+                <button
+                  key={id}
+                  onClick={() => { setFallbackMode(id); setError("") }}
+                  style={{
+                    flex: 1, padding: "8px 4px", fontSize: 11, fontWeight: 700,
+                    border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+                    background: fallbackMode === id ? "rgba(79,142,247,0.2)" : "rgba(255,255,255,0.04)",
+                    color:      fallbackMode === id ? "#4f8ef7"               : "#64748b",
+                    transition: "all .15s",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
-      {/* Botão manual após 30s ou erro de câmera */}
-      {showManual && (
-        <button style={S.btnY} onClick={handleManualConfirm}>
-          ⚡ Confirmar sem escanear
+            {/* Fallback 1 — Código numérico */}
+            {fallbackMode === "code" && (
+              <div>
+                <div style={{ color: "#64748b", fontSize: 12, marginBottom: 8 }}>
+                  Digite o <b style={{ color: "#e2e8f0" }}>código do cliente</b> (número do ID):
+                </div>
+                <input
+                  style={S.input}
+                  type="number"
+                  inputMode="numeric"
+                  placeholder={`Ex: ${clientId}`}
+                  value={manualCode}
+                  onChange={e => { setManualCode(e.target.value); setError("") }}
+                  onKeyDown={e => e.key === "Enter" && handleCodeConfirm()}
+                  autoFocus
+                />
+                <ErrBox msg={error} />
+                <button style={S.btnBlue} onClick={handleCodeConfirm}>
+                  Confirmar com código
+                </button>
+              </div>
+            )}
+
+            {/* Fallback 2 — PIN de 4 dígitos */}
+            {fallbackMode === "pin" && (
+              <div>
+                <div style={{ color: "#64748b", fontSize: 12, marginBottom: 8 }}>
+                  Digite o <b style={{ color: "#e2e8f0" }}>PIN de 4 dígitos</b> do cliente (fornecido pelo ADM):
+                </div>
+                <input
+                  style={{ ...S.input, fontSize: 22, textAlign: "center", letterSpacing: "8px", fontWeight: 700 }}
+                  type="number"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="0000"
+                  value={pinValue}
+                  onChange={e => { setPinValue(e.target.value.slice(0, 4)); setError("") }}
+                  onKeyDown={e => e.key === "Enter" && handlePinConfirm()}
+                  autoFocus
+                />
+                <ErrBox msg={error} />
+                <button style={S.btnBlue} onClick={handlePinConfirm}>
+                  Confirmar com PIN
+                </button>
+              </div>
+            )}
+
+            {/* Fallback 3 — Confirmar sem escanear */}
+            {fallbackMode === "manual" && (
+              <div>
+                <div style={{
+                  background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)",
+                  borderRadius: 10, padding: "10px 13px", marginBottom: 12, fontSize: 12, color: "#f59e0b",
+                }}>
+                  ⚠️ Esta opção registra o check-in <b>sem validação de QR Code</b>. O ADM verá o registro para revisão.
+                </div>
+                <button style={S.btnAmber} onClick={handleManualConfirm}>
+                  Confirmar sem escanear
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Botão para abrir fallbacks manualmente (câmera ativa mas difícil de ler) */}
+        {scannerStatus === "active" && fallbackMode === null && (
+          <button style={S.btnGhost} onClick={() => setFallbackMode("code")}>
+            QR não leu? Usar alternativa
+          </button>
+        )}
+
+        <button style={{ ...S.btnGhost, marginTop: 4 }} onClick={() => { stopCamera(); setStep("select_action") }}>
+          ← Cancelar
         </button>
-      )}
-
-      <button style={S.btnS} onClick={() => { stopScanner(); setStep("select_action") }}>
-        ← Cancelar
-      </button>
-    </div></div>
+      </div>
+    </div>
   )
 
+  // ── Confirmação ───────────────────────────────────────────────────────────
   if (step === "confirming") return (
     <div style={S.page}><div style={S.card}>
-      <Brand /><ClientCard />
+      <Brand offline={isOffline} />
+      <ClientBox client={client} />
 
-      <div style={{ textAlign: "center", marginBottom: 16 }}>
-        <div style={S.badge(action === "start" ? "#4f8ef7" : "#22c55e")}>
+      <div style={{ textAlign: "center", marginBottom: 18 }}>
+        <span style={{
+          display: "inline-block", padding: "4px 16px", borderRadius: 20,
+          fontSize: 10, fontWeight: 800, letterSpacing: "1.5px", textTransform: "uppercase",
+          background: action === "start" ? "rgba(79,142,247,0.15)" : "rgba(34,197,94,0.15)",
+          color:      action === "start" ? "#4f8ef7"               : "#22c55e",
+          marginBottom: 10,
+        }}>
           {action === "start" ? "📍 CHECK-IN · ENTRADA" : "✅ CHECK-OUT · SAÍDA"}
+        </span>
+        <div style={{ fontSize: "2rem", fontWeight: 700, color: "#e2e8f0", letterSpacing: "-1px" }}>
+          {horaAtual()}
         </div>
-        <div style={{ fontSize: "1.8rem", fontWeight: 700, color: "#f0f4ff" }}>{horaFmt}</div>
-        <div style={{ fontSize: 12, color: "#6b7fa3", textTransform: "capitalize" }}>{dataFmt}</div>
-        {selectedOrder && <div style={{ marginTop: 6, fontSize: 12, color: "#4f8ef7", fontWeight: 600 }}>O.S: {selectedOrder.number}</div>}
+        <div style={{ fontSize: 12, color: "#475569", textTransform: "capitalize" }}>{dataAtual()}</div>
+        {selectedOrder && (
+          <div style={{ marginTop: 6, fontSize: 12, color: "#4f8ef7", fontWeight: 600 }}>
+            O.S: {selectedOrder.number}
+          </div>
+        )}
       </div>
 
       {action === "finish" && openCheckin && (
-        <div style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: "#6b7fa3", textAlign: "center" }}>
-          Entrada às {openCheckin.checkin_at?.slice(11, 16)}
+        <div style={{ ...S.successBox, marginBottom: 14 }}>
+          Entrada registrada às {openCheckin.checkin_at?.slice(11, 16)}
         </div>
       )}
 
-      {isOffline && <div style={S.offline}>📵 Será salvo offline e sincronizado depois</div>}
+      <OfflineBanner show={isOffline} />
 
       <textarea
-        style={{ width: "100%", padding: "11px 13px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, color: "#f0f4ff", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 14, resize: "none" }}
+        style={S.textarea}
         rows={2}
         placeholder={action === "start" ? "Observação de entrada (opcional)" : "Observação de saída (opcional)"}
         value={notes}
         onChange={e => setNotes(e.target.value)}
       />
 
-      <div style={{ fontSize: 11, color: location ? "#22c55e" : "#6b7fa3", marginBottom: 14 }}>
-        {location ? "📍 Localização capturada" : "📍 Sem localização GPS"}
+      <div style={{ fontSize: 11, color: location ? "#22c55e" : "#475569", marginBottom: 14 }}>
+        {location ? "📍 Localização capturada ✓" : "📍 Sem localização GPS"}
       </div>
 
-      {error && <div style={S.err}>⚠️ {error}</div>}
+      <ErrBox msg={error} />
 
       <button
-        style={{ ...(action === "start" ? S.btnP : S.btnG), opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}
+        style={{
+          ...(action === "start" ? S.btnBlue : S.btnGreen),
+          opacity: sending ? 0.6 : 1,
+          cursor:  sending ? "not-allowed" : "pointer",
+        }}
         onClick={handleConfirm}
         disabled={sending}
       >
         {sending ? "Registrando..." : action === "start" ? "✓ Confirmar entrada" : "✓ Confirmar saída"}
       </button>
 
-      <button style={S.btnS} onClick={() => setStep("scanning")} disabled={sending}>
+      <button style={S.btnGhost} onClick={() => setStep("scanning")} disabled={sending}>
         ← Escanear novamente
       </button>
     </div></div>
   )
 
+  // ── Sucesso ───────────────────────────────────────────────────────────────
   if (step === "success") return (
     <div style={S.page}><div style={S.card}>
-      <Brand />
+      <Brand offline={isOffline} />
 
-      <div style={{ textAlign: "center", padding: "16px 0" }}>
-        <div style={{ fontSize: 52, marginBottom: 12 }}>
+      <div style={{ textAlign: "center", padding: "20px 0 16px" }}>
+        <div style={{ fontSize: 56, marginBottom: 12, lineHeight: 1 }}>
           {result?.action === "start" ? "📍" : "✅"}
         </div>
-        <div style={{ color: result?.action === "start" ? "#4f8ef7" : "#22c55e", fontSize: "1.2rem", fontWeight: 700, marginBottom: 6 }}>
-          {result?.offline ? "Salvo offline!" : result?.action === "start" ? "Check-in registrado!" : "Serviço concluído!"}
+
+        <div style={{
+          fontSize: "1.15rem", fontWeight: 700, marginBottom: 6,
+          color: result?.action === "start" ? "#4f8ef7" : "#22c55e",
+        }}>
+          {result?.offline
+            ? "Salvo offline!"
+            : result?.action === "start"
+            ? "Check-in registrado!"
+            : "Serviço concluído!"}
         </div>
 
         {result?.offline && (
-          <div style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 10, padding: "10px", margin: "12px 0", fontSize: 12, color: "#f59e0b" }}>
-            📵 Registrado offline. Será sincronizado automaticamente quando houver internet.
+          <div style={{
+            background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)",
+            borderRadius: 10, padding: 12, margin: "12px 0", fontSize: 12, color: "#f59e0b",
+          }}>
+            📵 Registrado offline.<br />Será sincronizado automaticamente ao reconectar.
           </div>
         )}
 
         {result?.action === "finish" && result?.duration_str && (
-          <div style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 12, padding: "12px", margin: "14px 0", display: "inline-block" }}>
-            <div style={{ color: "#6b7fa3", fontSize: 11 }}>Duração do serviço</div>
-            <div style={{ color: "#22c55e", fontSize: "1.6rem", fontWeight: 700 }}>{result.duration_str}</div>
+          <div style={{
+            background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.15)",
+            borderRadius: 14, padding: "14px 20px", margin: "14px auto",
+            display: "inline-block", minWidth: 140,
+          }}>
+            <div style={{ color: "#475569", fontSize: 11, marginBottom: 2 }}>Duração do serviço</div>
+            <div style={{ color: "#22c55e", fontSize: "1.7rem", fontWeight: 800, letterSpacing: "-1px" }}>
+              {result.duration_str}
+            </div>
           </div>
         )}
 
-        <div style={{ color: "#6b7fa3", fontSize: 12, marginTop: 8 }}>{dataFmt} às {horaFmt}</div>
-        {client && <div style={{ color: "#f0f4ff", fontWeight: 600, marginTop: 6 }}>{client.name}</div>}
-        {selectedOrder && <div style={{ color: "#4f8ef7", fontSize: 12, marginTop: 4 }}>O.S: {selectedOrder.number}</div>}
+        <div style={{ color: "#475569", fontSize: 12, marginTop: 8 }}>{dataAtual()} às {horaAtual()}</div>
+        {client && <div style={{ color: "#e2e8f0", fontWeight: 600, marginTop: 6 }}>{client.name}</div>}
+        {selectedOrder && (
+          <div style={{ color: "#4f8ef7", fontSize: 12, marginTop: 4 }}>
+            O.S: {selectedOrder.number}
+          </div>
+        )}
       </div>
 
-      <button style={S.btnS} onClick={() => {
-        setStep("select_os"); setResult(null); setNotes("")
-        setSelectedOrder(null); setOpen(null); init()
-      }}>
+      <div style={S.divider} />
+
+      <button style={S.btnGhost} onClick={resetFlow}>
         Registrar outro serviço
       </button>
 
       <div style={S.footer}>
-        <a href="https://svfinance.com.br" style={{ fontSize: 10, color: "#6b7fa3", textDecoration: "none" }}>svfinance.com.br</a>
+        <a href="https://svfinance.com.br" style={S.footerLink}>svfinance.com.br</a>
       </div>
     </div></div>
   )
