@@ -292,29 +292,66 @@ export default function CheckinScanner() {
   }
 
   async function loadData(attempt = 1) {
-    const MAX_ATTEMPTS = 4
-    const RETRY_DELAY  = 15000 // 15s entre tentativas (Render cold start ~50s total)
+    const MAX_ATTEMPTS = 3
+    const RETRY_DELAY  = 12000
 
     setStep("loading")
     setError("")
     setRetryInfo(attempt > 1 ? `Tentativa ${attempt} de ${MAX_ATTEMPTS}…` : "")
 
+    // Sem token → redireciona para login salvando destino
+    if (!token) {
+      localStorage.setItem("sv_redirect_after_login", window.location.pathname + window.location.search)
+      navigate("/")
+      return
+    }
+
     try {
-      // Primeiro faz um health check rápido para "acordar" o Render
-      // antes de disparar as 3 requisições juntas
-      if (attempt === 1) {
-        fetch(`${API}/health`).catch(() => {})
-        await new Promise(r => setTimeout(r, 800))
+      const headers = { Authorization: `Bearer ${token}` }
+
+      // Health check primeiro para ver se API responde
+      let healthOk = false
+      try {
+        const h = await fetch(`${API}/health`, { signal: AbortSignal.timeout(10000) })
+        healthOk = h.ok
+      } catch {}
+
+      if (!healthOk && attempt === 1) {
+        // API não respondeu ainda — aguarda e tenta de novo
+        let countdown = 12
+        setRetryInfo(`Conectando ao servidor… ${countdown}s`)
+        const interval = setInterval(() => {
+          countdown -= 1
+          setRetryInfo(`Conectando ao servidor… ${countdown}s`)
+          if (countdown <= 0) clearInterval(interval)
+        }, 1000)
+        await new Promise(r => setTimeout(r, RETRY_DELAY))
+        clearInterval(interval)
+        loadData(2)
+        return
       }
 
-      const headers = { Authorization: `Bearer ${token}` }
       const [resC, resO, resOpen] = await Promise.all([
-        fetch(`${API}/clients/${clientId}`,  { headers, signal: AbortSignal.timeout(25000) }),
-        fetch(`${API}/orders`,               { headers, signal: AbortSignal.timeout(25000) }),
-        fetch(`${API}/checkin/open`,         { headers, signal: AbortSignal.timeout(25000) }),
+        fetch(`${API}/clients/${clientId}`,  { headers, signal: AbortSignal.timeout(20000) }),
+        fetch(`${API}/orders`,               { headers, signal: AbortSignal.timeout(20000) }),
+        fetch(`${API}/checkin/open`,         { headers, signal: AbortSignal.timeout(20000) }),
       ])
 
-      if (resC.status === 401) { navigate("/"); return }
+      // Token expirado
+      if (resC.status === 401) {
+        localStorage.removeItem("token")
+        localStorage.setItem("sv_redirect_after_login", window.location.pathname + window.location.search)
+        navigate("/")
+        return
+      }
+
+      // Qualquer outro erro HTTP — mostra status real
+      if (!resC.ok) {
+        setError(`Erro ${resC.status} ao carregar cliente. Tente novamente.`)
+        setRetryInfo("")
+        setStep("error")
+        return
+      }
 
       const [dataC, dataO, dataOpen] = await Promise.all([
         resC.json(), resO.json(), resOpen.json()
@@ -338,24 +375,21 @@ export default function CheckinScanner() {
         setStep("offline_mode")
         return
       }
-
+      // Mostra mensagem técnica real para diagnóstico
+      const msg = err?.message || String(err)
       if (attempt < MAX_ATTEMPTS) {
-        // Retry automático com countdown
         let countdown = RETRY_DELAY / 1000
-        setRetryInfo(`Servidor iniciando… nova tentativa em ${countdown}s`)
+        setRetryInfo(`Falha (${msg}) — nova tentativa em ${countdown}s`)
         const interval = setInterval(() => {
           countdown -= 1
-          if (countdown <= 0) {
-            clearInterval(interval)
-          } else {
-            setRetryInfo(`Servidor iniciando… nova tentativa em ${countdown}s`)
-          }
+          setRetryInfo(`Falha — nova tentativa em ${countdown}s`)
+          if (countdown <= 0) clearInterval(interval)
         }, 1000)
         await new Promise(r => setTimeout(r, RETRY_DELAY))
         clearInterval(interval)
         loadData(attempt + 1)
       } else {
-        setError("Servidor indisponível. Verifique sua conexão ou tente em alguns minutos.")
+        setError(`Falha ao conectar: ${msg}`)
         setRetryInfo("")
         setStep("error")
       }
