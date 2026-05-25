@@ -21,10 +21,20 @@ function useIsMobile() {
   return isMobile;
 }
 
+const DIAS_SEMANA = [
+  { value:"0", label:"Dom" }, { value:"1", label:"Seg" },
+  { value:"2", label:"Ter" }, { value:"3", label:"Qua" },
+  { value:"4", label:"Qui" }, { value:"5", label:"Sex" },
+  { value:"6", label:"Sáb" },
+];
+
 const EMPTY_FORM = {
-  name: "", email: "", phone: "", document: "",
-  address: "", notes: "",
-  cep: "", logradouro: "", numero: "", bairro: "", municipio: "", uf: "",
+  codigo:"", name:"", email:"", phone:"", document:"", cnpj:"",
+  address:"", notes:"",
+  cep:"", logradouro:"", numero:"", bairro:"", municipio:"", uf:"",
+  contrato_tipo:"avulso", contrato_valor:"", contrato_forma_pagamento:"",
+  contrato_dia_pagamento:"", contrato_inicio:"", contrato_fim:"",
+  contrato_status:"ativo", contrato_dias_semana:"", contrato_observacoes:"",
 };
 
 export default function Clients() {
@@ -175,18 +185,29 @@ export default function Clients() {
   function openEdit(c) {
     setEditing(c);
     setForm({
-      name:       c.name       || "",
-      email:      c.email      || "",
-      phone:      c.phone      || "",
-      document:   c.document   || "",
-      address:    c.address    || "",
-      notes:      c.notes      || "",
-      cep:        c.cep        || "",
-      logradouro: c.logradouro || "",
-      numero:     c.numero     || "",
-      bairro:     c.bairro     || "",
-      municipio:  c.municipio  || "",
-      uf:         c.uf         || "",
+      codigo:      c.codigo      || "",
+      name:        c.name        || "",
+      email:       c.email       || "",
+      phone:       c.phone       || "",
+      document:    c.document    || "",
+      cnpj:        c.cnpj        || "",
+      address:     c.address     || "",
+      notes:       c.notes       || "",
+      cep:         c.cep         || "",
+      logradouro:  c.logradouro  || "",
+      numero:      c.numero      || "",
+      bairro:      c.bairro      || "",
+      municipio:   c.municipio   || "",
+      uf:          c.uf          || "",
+      contrato_tipo:            c.contrato_tipo            || "avulso",
+      contrato_valor:           c.contrato_valor           || "",
+      contrato_forma_pagamento: c.contrato_forma_pagamento || "",
+      contrato_dia_pagamento:   c.contrato_dia_pagamento   || "",
+      contrato_inicio:          c.contrato_inicio          || "",
+      contrato_fim:             c.contrato_fim             || "",
+      contrato_status:          c.contrato_status          || "ativo",
+      contrato_dias_semana:     c.contrato_dias_semana     || "",
+      contrato_observacoes:     c.contrato_observacoes     || "",
     });
     setGeoStatus(c.latitude ? "ok" : null);
     setModalOpen(true);
@@ -504,13 +525,25 @@ export default function Clients() {
             <form onSubmit={handleSubmit}>
               <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:16, marginBottom:8 }}>
 
-                {/* Nome */}
-                <div style={{ display:"flex", flexDirection:"column", gap:6, gridColumn:"1 / -1" }}>
-                  {labelInput("Nome", true)}
-                  <input style={inputStyle} required placeholder="Nome completo ou razão social" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
+                {/* ── DADOS BÁSICOS ── */}
+                <div style={{ gridColumn:"1 / -1", color:theme.primary, fontSize:"0.75rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"1.5px", marginBottom:4, paddingBottom:6, borderBottom:`1px solid ${isGlass?"rgba(255,255,255,0.2)":theme.borderCard}` }}>
+                  👤 Dados do Cliente
                 </div>
 
-                {/* Email / Telefone */}
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {labelInput("Código interno")}
+                  <input style={inputStyle} placeholder="Ex: RG-001" value={form.codigo} onChange={e=>setForm({...form,codigo:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {labelInput("CPF / CNPJ")}
+                  <input style={inputStyle} placeholder="000.000.000-00" value={form.document} onChange={e=>setForm({...form,document:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
+                </div>
+
+                <div style={{ display:"flex", flexDirection:"column", gap:6, gridColumn:"1 / -1" }}>
+                  {labelInput("Nome completo / Razão social", true)}
+                  <input style={inputStyle} required placeholder="Nome do cliente" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
+                </div>
+
                 <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                   {labelInput("Email")}
                   <input style={inputStyle} type="email" placeholder="cliente@email.com" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
@@ -520,48 +553,37 @@ export default function Clients() {
                   <input style={inputStyle} placeholder="(44) 99999-9999" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
                 </div>
 
-                {/* Documento */}
-                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                  {labelInput("CPF / CNPJ")}
-                  <input style={inputStyle} placeholder="000.000.000-00" value={form.document} onChange={e=>setForm({...form,document:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
+                {/* ── ENDEREÇO ── */}
+                <div style={{ gridColumn:"1 / -1", color:theme.primary, fontSize:"0.75rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"1.5px", marginTop:8, marginBottom:4, paddingBottom:6, borderBottom:`1px solid ${isGlass?"rgba(255,255,255,0.2)":theme.borderCard}` }}>
+                  📍 Endereço
                 </div>
 
-                {/* CEP com busca automática */}
                 <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                   {labelInput("CEP")}
                   <div style={{ position:"relative" }}>
-                    <input
-                      style={{ ...inputStyle, paddingRight:40 }}
-                      placeholder="00000-000"
-                      value={form.cep}
+                    <input style={{ ...inputStyle, paddingRight:40 }} placeholder="00000-000" value={form.cep}
                       onChange={e => {
                         const v = e.target.value.replace(/\D/g,"").slice(0,8);
-                        setForm({...form, cep:v});
+                        setForm({...form,cep:v});
                         if (v.length === 8) buscarCep(v);
                       }}
                       onFocus={focusIn} onBlur={focusOut}
                     />
-                    {cepLoading && (
-                      <div style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", width:16, height:16, border:"2px solid rgba(79,142,247,0.3)", borderTop:"2px solid #4f8ef7", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>
-                    )}
-                    {!cepLoading && geoStatus === "ok"   && <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", color:"#22c55e", fontSize:14 }}>📍</span>}
-                    {!cepLoading && geoStatus === "warn" && <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", color:"#f59e0b", fontSize:14 }}>⚠️</span>}
+                    {cepLoading && <div style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", width:16, height:16, border:"2px solid rgba(79,142,247,0.3)", borderTop:"2px solid #4f8ef7", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>}
+                    {!cepLoading && geoStatus==="ok"   && <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", color:"#22c55e", fontSize:14 }}>📍</span>}
+                    {!cepLoading && geoStatus==="warn" && <span style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", color:"#f59e0b", fontSize:14 }}>⚠️</span>}
                   </div>
-                  {geoStatus === "ok"   && <span style={{ fontSize:11, color:"#22c55e" }}>📍 Localização salva automaticamente</span>}
-                  {geoStatus === "warn" && <span style={{ fontSize:11, color:"#f59e0b" }}>⚠️ CEP encontrado mas sem coordenadas GPS</span>}
-                </div>
-
-                {/* Logradouro + Número */}
-                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                  {labelInput("Logradouro")}
-                  <input style={inputStyle} placeholder="Rua, Av..." value={form.logradouro} onChange={e=>setForm({...form,logradouro:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
+                  {geoStatus==="ok"   && <span style={{ fontSize:11, color:"#22c55e" }}>📍 Localização salva automaticamente</span>}
+                  {geoStatus==="warn" && <span style={{ fontSize:11, color:"#f59e0b" }}>⚠️ CEP encontrado mas sem coordenadas GPS</span>}
                 </div>
                 <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                   {labelInput("Número")}
                   <input style={inputStyle} placeholder="123" value={form.numero} onChange={e=>setForm({...form,numero:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
                 </div>
-
-                {/* Bairro / Município / UF */}
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {labelInput("Logradouro")}
+                  <input style={inputStyle} placeholder="Rua, Av..." value={form.logradouro} onChange={e=>setForm({...form,logradouro:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
+                </div>
                 <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                   {labelInput("Bairro")}
                   <input style={inputStyle} placeholder="Bairro" value={form.bairro} onChange={e=>setForm({...form,bairro:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
@@ -575,16 +597,106 @@ export default function Clients() {
                   <input style={inputStyle} placeholder="PR" maxLength={2} value={form.uf} onChange={e=>setForm({...form,uf:e.target.value.toUpperCase()})} onFocus={focusIn} onBlur={focusOut}/>
                 </div>
 
-                {/* Endereço geral (legado) */}
-                <div style={{ display:"flex", flexDirection:"column", gap:6, gridColumn:"1 / -1" }}>
-                  {labelInput("Endereço completo (opcional)")}
-                  <input style={inputStyle} placeholder="Preenchido automaticamente pelo CEP" value={form.address} onChange={e=>setForm({...form,address:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
+                {/* ── CONTRATO ── */}
+                <div style={{ gridColumn:"1 / -1", color:theme.primary, fontSize:"0.75rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"1.5px", marginTop:8, marginBottom:4, paddingBottom:6, borderBottom:`1px solid ${isGlass?"rgba(255,255,255,0.2)":theme.borderCard}` }}>
+                  📋 Contrato
                 </div>
 
-                {/* Observações */}
+                {/* Tipo + Status */}
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {labelInput("Tipo de contrato")}
+                  <select style={{ ...inputStyle, cursor:"pointer" }} value={form.contrato_tipo} onChange={e=>setForm({...form,contrato_tipo:e.target.value})} onFocus={focusIn} onBlur={focusOut}>
+                    <option value="avulso">Avulso (sem contrato)</option>
+                    <option value="semanal">Semanal</option>
+                    <option value="quinzenal">Quinzenal (2x/mês)</option>
+                    <option value="mensal">Mensal</option>
+                    <option value="anual">Anual</option>
+                  </select>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {labelInput("Status do contrato")}
+                  <select style={{ ...inputStyle, cursor:"pointer" }} value={form.contrato_status} onChange={e=>setForm({...form,contrato_status:e.target.value})} onFocus={focusIn} onBlur={focusOut}>
+                    <option value="ativo">✅ Ativo</option>
+                    <option value="pausado">⏸️ Pausado</option>
+                    <option value="encerrado">❌ Encerrado</option>
+                  </select>
+                </div>
+
+                {/* Valor + Forma de pagamento */}
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {labelInput("Valor do contrato (R$)")}
+                  <input style={inputStyle} type="number" step="0.01" placeholder="0,00" value={form.contrato_valor} onChange={e=>setForm({...form,contrato_valor:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {labelInput("Forma de pagamento")}
+                  <select style={{ ...inputStyle, cursor:"pointer" }} value={form.contrato_forma_pagamento} onChange={e=>setForm({...form,contrato_forma_pagamento:e.target.value})} onFocus={focusIn} onBlur={focusOut}>
+                    <option value="">Selecionar...</option>
+                    <option value="pix">Pix</option>
+                    <option value="boleto">Boleto</option>
+                    <option value="deposito">Depósito</option>
+                    <option value="carne">Carnê</option>
+                    <option value="dinheiro">Dinheiro</option>
+                  </select>
+                </div>
+
+                {/* Dia de pagamento + Dias da semana de execução */}
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {labelInput("Dia de pagamento (dia do mês)")}
+                  <input style={inputStyle} type="number" min="1" max="31" placeholder="Ex: 10" value={form.contrato_dia_pagamento} onChange={e=>setForm({...form,contrato_dia_pagamento:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
+                </div>
+
+                {/* Dias da semana */}
+                {form.contrato_tipo !== "avulso" && form.contrato_tipo !== "mensal" && form.contrato_tipo !== "anual" && (
+                  <div style={{ display:"flex", flexDirection:"column", gap:8, gridColumn:"1 / -1" }}>
+                    {labelInput("Dias de execução")}
+                    <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                      {DIAS_SEMANA.map(d => {
+                        const selecionados = (form.contrato_dias_semana || "").split(",").filter(Boolean);
+                        const sel = selecionados.includes(d.value);
+                        return (
+                          <button key={d.value} type="button"
+                            style={{ padding:"6px 14px", borderRadius:20, fontSize:"0.8rem", fontWeight:700, cursor:"pointer", border:"none", fontFamily:"inherit",
+                              background: sel ? theme.primary : isGlass?"rgba(255,255,255,0.2)":theme.bgCard,
+                              color:      sel ? "#fff" : theme.textMuted,
+                              boxShadow:  sel ? `0 2px 10px ${theme.primary}44` : "none",
+                            }}
+                            onClick={() => {
+                              const lista = (form.contrato_dias_semana || "").split(",").filter(Boolean);
+                              const nova  = sel ? lista.filter(x=>x!==d.value) : [...lista, d.value];
+                              setForm({...form, contrato_dias_semana: nova.sort().join(",")});
+                            }}
+                          >
+                            {d.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <span style={{ fontSize:11, color:theme.textMuted }}>
+                      {form.contrato_tipo === "quinzenal" ? "Selecione 2 dias por semana" : "Selecione 1 dia por semana"}
+                    </span>
+                  </div>
+                )}
+
+                {/* Início + Fim */}
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {labelInput("Início do contrato")}
+                  <input style={{ ...inputStyle, colorScheme }} type="date" value={form.contrato_inicio} onChange={e=>setForm({...form,contrato_inicio:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {labelInput("Fim do contrato")}
+                  <input style={{ ...inputStyle, colorScheme }} type="date" value={form.contrato_fim} onChange={e=>setForm({...form,contrato_fim:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
+                </div>
+
+                {/* Observações do contrato */}
                 <div style={{ display:"flex", flexDirection:"column", gap:6, gridColumn:"1 / -1" }}>
-                  {labelInput("Observações")}
-                  <textarea style={{ ...inputStyle, resize:"vertical", minHeight:70 }} placeholder="Informações adicionais..." value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
+                  {labelInput("Observações do contrato")}
+                  <textarea style={{ ...inputStyle, resize:"vertical", minHeight:60 }} placeholder="Ex: cliente prefere manhãs, acesso pelo portão lateral..." value={form.contrato_observacoes} onChange={e=>setForm({...form,contrato_observacoes:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
+                </div>
+
+                {/* ── OBSERVAÇÕES GERAIS ── */}
+                <div style={{ display:"flex", flexDirection:"column", gap:6, gridColumn:"1 / -1" }}>
+                  {labelInput("Observações gerais")}
+                  <textarea style={{ ...inputStyle, resize:"vertical", minHeight:60 }} placeholder="Informações adicionais..." value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
                 </div>
 
               </div>
