@@ -236,6 +236,8 @@ export default function CheckinScanner() {
   const [sending, setSending]         = useState(false)
   const [result, setResult]           = useState(null)
   const [notes, setNotes]             = useState("")
+  // Retry
+  const [retryInfo, setRetryInfo]         = useState("")
   // Scanner
   const [scannerStatus, setScannerStatus] = useState("idle") // idle | starting | active | error
   const [fallbackMode, setFallbackMode]   = useState(null)  // null | "code" | "pin" | "manual"
@@ -289,15 +291,27 @@ export default function CheckinScanner() {
     )
   }
 
-  async function loadData() {
+  async function loadData(attempt = 1) {
+    const MAX_ATTEMPTS = 4
+    const RETRY_DELAY  = 15000 // 15s entre tentativas (Render cold start ~50s total)
+
     setStep("loading")
     setError("")
+    setRetryInfo(attempt > 1 ? `Tentativa ${attempt} de ${MAX_ATTEMPTS}…` : "")
+
     try {
+      // Primeiro faz um health check rápido para "acordar" o Render
+      // antes de disparar as 3 requisições juntas
+      if (attempt === 1) {
+        fetch(`${API}/health`).catch(() => {})
+        await new Promise(r => setTimeout(r, 800))
+      }
+
       const headers = { Authorization: `Bearer ${token}` }
       const [resC, resO, resOpen] = await Promise.all([
-        fetch(`${API}/clients/${clientId}`,  { headers }),
-        fetch(`${API}/orders`,               { headers }),
-        fetch(`${API}/checkin/open`,         { headers }),
+        fetch(`${API}/clients/${clientId}`,  { headers, signal: AbortSignal.timeout(25000) }),
+        fetch(`${API}/orders`,               { headers, signal: AbortSignal.timeout(25000) }),
+        fetch(`${API}/checkin/open`,         { headers, signal: AbortSignal.timeout(25000) }),
       ])
 
       if (resC.status === 401) { navigate("/"); return }
@@ -307,6 +321,7 @@ export default function CheckinScanner() {
       ])
 
       setClient(dataC)
+      setRetryInfo("")
 
       const clientOrders = (Array.isArray(dataO) ? dataO : []).filter(o =>
         String(o.client_id) === String(clientId) &&
@@ -317,11 +332,31 @@ export default function CheckinScanner() {
       if (dataOpen.open) setOpenCheckin(dataOpen)
 
       setStep("select_os")
-    } catch {
+
+    } catch (err) {
       if (!navigator.onLine) {
         setStep("offline_mode")
+        return
+      }
+
+      if (attempt < MAX_ATTEMPTS) {
+        // Retry automático com countdown
+        let countdown = RETRY_DELAY / 1000
+        setRetryInfo(`Servidor iniciando… nova tentativa em ${countdown}s`)
+        const interval = setInterval(() => {
+          countdown -= 1
+          if (countdown <= 0) {
+            clearInterval(interval)
+          } else {
+            setRetryInfo(`Servidor iniciando… nova tentativa em ${countdown}s`)
+          }
+        }, 1000)
+        await new Promise(r => setTimeout(r, RETRY_DELAY))
+        clearInterval(interval)
+        loadData(attempt + 1)
       } else {
-        setError("Não foi possível carregar os dados. Verifique a conexão.")
+        setError("Servidor indisponível. Verifique sua conexão ou tente em alguns minutos.")
+        setRetryInfo("")
         setStep("error")
       }
     }
@@ -596,11 +631,26 @@ export default function CheckinScanner() {
   //  RENDERS POR STEP
   // ══════════════════════════════════════════════════════════════════════════
 
-  // ── Loading ───────────────────────────────────────────────────────────────
+  // ── Loading ───────────────────────────────────────────────
   if (step === "loading") return (
     <div style={S.page}><div style={S.card}>
       <Brand offline={isOffline} />
-      <Spinner />
+      <div style={{ textAlign: "center", padding: "40px 0", color: "#475569" }}>
+        <div style={{
+          width: 32, height: 32, border: "3px solid rgba(79,142,247,0.2)",
+          borderTop: "3px solid #4f8ef7", borderRadius: "50%",
+          animation: "spin 0.8s linear infinite", margin: "0 auto 14px",
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <div style={{ fontSize: 13, color: "#475569" }}>
+          {retryInfo || "Carregando..."}
+        </div>
+        {retryInfo && (
+          <div style={{ fontSize: 11, color: "#334155", marginTop: 6 }}>
+            O servidor pode levar até 60s para iniciar
+          </div>
+        )}
+      </div>
     </div></div>
   )
 
