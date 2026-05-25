@@ -468,9 +468,9 @@ export default function CheckinScanner() {
   // ── QR detectado ──────────────────────────────────────────────────────────
 
   function onQRDetected(text) {
-    const pattern = `/checkin/${clientId}`
-    if (!text.includes(pattern)) {
-      setError("QR Code incorreto. Use o adesivo deste cliente.")
+    // Valida se é o adesivo universal SV Finance
+    if (text.trim() !== "sv-checkin-universal") {
+      setError("QR Code inválido. Use o adesivo oficial SV Finance.")
       setStep("select_action")
       return
     }
@@ -586,10 +586,11 @@ export default function CheckinScanner() {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
-            order_id: selectedOrder?.id || null,
-            lat:      location?.lat     || null,
-            lon:      location?.lon     || null,
-            notes:    notes             || null,
+            order_id:  selectedOrder?.id || null,
+            lat:       location?.lat     || null,
+            lon:       location?.lon     || null,
+            notes:     notes             || null,
+            qr_token:  "sv-checkin-universal", // token universal gravado no adesivo
           }),
         })
       } else {
@@ -597,9 +598,10 @@ export default function CheckinScanner() {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
-            lat:   location?.lat || null,
-            lon:   location?.lon || null,
-            notes: notes         || null,
+            lat:      location?.lat || null,
+            lon:      location?.lon || null,
+            notes:    notes         || null,
+            qr_token: "sv-checkin-universal",
           }),
         })
       }
