@@ -4,7 +4,6 @@ import { useTheme } from "../../contexts/ThemeContext";
 import { useNicho } from "../../contexts/NichoContext";
 import { logoutUser } from "../../services/api";
 
-// ─── Storage helpers ──────────────────────────────────────────
 const STYLE_KEY    = "sv_sidebar_style";
 const AUTOHIDE_KEY = "sv_sidebar_autohide";
 
@@ -14,7 +13,7 @@ export function getAutoHide()        { return localStorage.getItem(AUTOHIDE_KEY)
 export function setAutoHideLS(v)     { localStorage.setItem(AUTOHIDE_KEY, String(v)); }
 
 const MOBILE_STYLE_KEY = "sv_mobile_style";
-function getMobileStyle() { return localStorage.getItem(MOBILE_STYLE_KEY) || "dock"; }
+function getMobileStyle()    { return localStorage.getItem(MOBILE_STYLE_KEY) || "dock"; }
 function setMobileStyleLS(s) { localStorage.setItem(MOBILE_STYLE_KEY, s); window.dispatchEvent(new Event("sv_mobile_style_changed")); }
 
 function useIsMobile() {
@@ -27,7 +26,6 @@ function useIsMobile() {
   return m;
 }
 
-// ─── Menu items ───────────────────────────────────────────────
 function useMenuItems() {
   const role        = localStorage.getItem("role")         || "viewer";
   const accountType = localStorage.getItem("account_type") || "business";
@@ -40,28 +38,28 @@ function useMenuItems() {
     { to:"/dashboard",    icon:"🏠", label:"Dashboard"     },
     { to:"/transactions", icon:"💰", label:"Transações"    },
     { to:"/bills",        icon:"📄", label:"Contas"        },
-    { to:"/analytics",   icon:"📊", label:"Analytics"     },
+    { to:"/analytics",    icon:"📊", label:"Analytics"     },
     { to:"/goals",        icon:"🎯", label:"Metas"         },
     { to:"/settings",     icon:"⚙️", label:"Configurações" },
   ] : [
-    { to:"/dashboard",     icon:"🏠", label:"Dashboard",           roles:null,                                  module:"dashboard"    },
-    { to:"/clients",       icon:"👥", label:label("clients"),       roles:null,                                  module:"clients"      },
-    { to:"/transactions",  icon:"💰", label:"Transações",           roles:["admin","financial"],                 module:"transactions", children:[
+    { to:"/dashboard",     icon:"🏠", label:"Dashboard",          roles:null,                                            module:"dashboard"    },
+    { to:"/clients",       icon:"👥", label:label("clients"),      roles:["admin","financial","seller"],                  module:"clients"      },
+    { to:"/transactions",  icon:"💰", label:"Transações",          roles:["admin","financial"],                           module:"transactions", children:[
       { to:"/transactions", label:"Todas as transações" },
       { to:"/bills",        label:"Contas a pagar/receber" },
     ]},
-    { to:"/analytics",    icon:"📊", label:"Analytics",            roles:["admin","financial"],                 module:"analytics"    },
-    { to:"/reports",       icon:"📈", label:"Relatórios",           roles:["admin","financial"],                 module:"reports"      },
-    { to:"/products",      icon:"📦", label:label("products"),      roles:["admin","financial","stock","seller"], module:"products"     },
-    { to:"/quotes",        icon:"🧾", label:"Orçamentos",           roles:null,                                  module:"quotes"       },
-    { to:"/sales",         icon:"🛒", label:label("sales"),         roles:null,                                  module:"orders"       },
-    // ── NF-e — só para admin Pro/Business ──
-    ...(canNFe ? [{ to:"/sales", icon:"📋", label:"Emitir NF-e", roles:["admin"], module:"orders", nfe:true }] : []),
-    { to:"/team",          icon:"👤", label:"Equipe",               roles:["admin"],                             module:"team"         },
-    { to:"/commissions",   icon:"💸", label:"Comissões",            roles:["admin","financial","seller"],        module:"commissions"  },
-    { to:"/import-export", icon:"📂", label:"Importar/Exportar",    roles:["admin","financial"],                 module:"import"       },
-    { to:"/goals",         icon:"🎯", label:"Metas",                roles:null,                                  module:"goals"        },
-    { to:"/settings",      icon:"⚙️", label:"Configurações",        roles:null,                                  module:"settings"     },
+    { to:"/analytics",     icon:"📊", label:"Analytics",           roles:["admin","financial"],                           module:"analytics"    },
+    { to:"/reports",       icon:"📈", label:"Relatórios",          roles:["admin","financial"],                           module:"reports"      },
+    { to:"/products",      icon:"📦", label:label("products"),     roles:["admin","financial","stock","seller"],          module:"products"     },
+    { to:"/quotes",        icon:"🧾", label:"Orçamentos",          roles:["admin","financial"],                           module:"quotes"       },
+    { to:"/orders",        icon:"📋", label:"Ordens de Serviço",   roles:["admin","financial","seller","stock","viewer"],  module:"orders"       },
+    { to:"/sales",         icon:"🛒", label:label("sales"),        roles:["admin","financial"],                           module:"orders"       },
+    ...(canNFe ? [{ to:"/sales", icon:"🧾", label:"Emitir NF-e",  roles:["admin"],                                       module:"orders", nfe:true }] : []),
+    { to:"/team",          icon:"👤", label:"Equipe",              roles:["admin"],                                       module:"team"         },
+    { to:"/commissions",   icon:"💸", label:"Comissões",           roles:["admin","financial","seller"],                  module:"commissions"  },
+    { to:"/import-export", icon:"📂", label:"Importar/Exportar",   roles:["admin","financial"],                           module:"import"       },
+    { to:"/goals",         icon:"🎯", label:"Metas",               roles:["admin","financial"],                           module:"goals"        },
+    { to:"/settings",      icon:"⚙️", label:"Configurações",       roles:["admin"],                                       module:"settings"     },
   ];
 
   return all.filter(i => {
@@ -71,7 +69,6 @@ function useMenuItems() {
   });
 }
 
-// ─── Dropdown Portal ─────────────────────────────────────────
 function DropdownPortal({ items, anchorEl, theme, isActive, onSelect }) {
   const [pos, setPos] = useState(null);
   useEffect(() => {
@@ -111,9 +108,6 @@ function DropdownPortal({ items, anchorEl, theme, isActive, onSelect }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// VERTICAL
-// ═══════════════════════════════════════════════════════════════
 function SidebarVertical({ menuItems, theme, isGlass, sidebarOpen, setSidebarOpen }) {
   const location = useLocation();
   const isActive = p => location.pathname === p;
@@ -177,9 +171,6 @@ function SidebarVertical({ menuItems, theme, isGlass, sidebarOpen, setSidebarOpe
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// HORIZONTAL
-// ═══════════════════════════════════════════════════════════════
 function SidebarHorizontal({ menuItems, theme, isGlass }) {
   const location  = useLocation();
   const isActive  = p => location.pathname === p;
@@ -271,9 +262,6 @@ function SidebarHorizontal({ menuItems, theme, isGlass }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// DOCK CONVEXO
-// ═══════════════════════════════════════════════════════════════
 function SidebarDock({ menuItems, theme, isGlass, convex = true, mobile = false }) {
   const location = useLocation();
   const isActive = p => location.pathname === p;
@@ -454,9 +442,6 @@ function SidebarDock({ menuItems, theme, isGlass, convex = true, mobile = false 
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// MOBILE
-// ═══════════════════════════════════════════════════════════════
 const MOBILE_STYLES = [
   { id:"dock",       icon:"⬤", label:"Dock",        desc:"Bolinhas flutuantes (padrão)" },
   { id:"vertical",   icon:"▐", label:"Lateral",      desc:"Desliza da esquerda" },
@@ -594,9 +579,6 @@ function SidebarMobile({ menuItems, theme, isGlass }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// COMPONENTE PRINCIPAL
-// ═══════════════════════════════════════════════════════════════
 export default function Sidebar({ sidebarOpen, setSidebarOpen }) {
   const { theme, themeId } = useTheme();
   const isGlass   = themeId === "glass" || themeId === "gray";
