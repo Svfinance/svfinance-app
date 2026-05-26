@@ -474,12 +474,23 @@ export default function Clients() {
 
       {/* ── MODAL QR CODE UNIVERSAL ── */}
       {qrModal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, backdropFilter:"blur(6px)" }} onClick={() => setQrModal(false)}>
-          <div style={{ background:"#0a0f1e", border:"1px solid rgba(79,142,247,0.2)", borderRadius:24, padding:isMobile?"24px 20px":36, width:isMobile?"92%":"100%", maxWidth:400, boxShadow:"0 24px 80px rgba(0,0,0,0.7)", textAlign:"center" }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize:10, fontWeight:800, letterSpacing:"4px", color:"#4f8ef7", textTransform:"uppercase", marginBottom:4 }}>SV Finance</div>
-            <div style={{ fontSize:"1.2rem", fontWeight:700, color:"#e2e8f0", marginBottom:4 }}>QR Code Universal</div>
-            <div style={{ fontSize:12, color:"#475569", marginBottom:20 }}>
-              1 adesivo para todos os clientes — identificação feita por GPS + O.S
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, backdropFilter:"blur(6px)", padding:"16px" }} onClick={() => setQrModal(false)}>
+          <div style={{ background:"#0a0f1e", border:"1px solid rgba(79,142,247,0.2)", borderRadius:24, padding:isMobile?"24px 20px":36, width:"100%", maxWidth:400, boxShadow:"0 24px 80px rgba(0,0,0,0.7)", textAlign:"center", maxHeight:"92vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
+
+            {/* Header com X */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+              <div>
+                <div style={{ fontSize:10, fontWeight:800, letterSpacing:"4px", color:"#4f8ef7", textTransform:"uppercase" }}>SV Finance</div>
+                <div style={{ fontSize:"1rem", fontWeight:700, color:"#e2e8f0" }}>QR Code Universal</div>
+              </div>
+              <button
+                onClick={() => setQrModal(false)}
+                style={{ background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", color:"#94a3b8", width:36, height:36, borderRadius:10, cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}
+              >✕</button>
+            </div>
+
+            <div style={{ fontSize:12, color:"#475569", marginBottom:16 }}>
+              1 adesivo para todos os clientes — identificação por GPS + O.S
             </div>
 
             {/* QR Code via quickchart.io */}
@@ -487,18 +498,18 @@ export default function Clients() {
               <img
                 src={QR_IMG_URL}
                 alt="QR Code Universal SV Finance"
-                width={280}
-                height={280}
+                width={240}
+                height={240}
                 style={{ display:"block", borderRadius:8 }}
               />
             </div>
 
             <div style={{ background:"rgba(79,142,247,0.08)", border:"1px solid rgba(79,142,247,0.2)", borderRadius:12, padding:"12px 16px", marginBottom:20, fontSize:12, color:"#64748b", lineHeight:1.6, textAlign:"left" }}>
               <div style={{ color:"#4f8ef7", fontWeight:700, marginBottom:4 }}>Como funciona:</div>
-              <div>1. Imprima este QR Code e cole na vitrine/porta do cliente</div>
-              <div>2. O colaborador seleciona a O.S no app antes de escanear</div>
-              <div>3. O sistema valida a localização GPS automaticamente</div>
-              <div>4. Pode usar o mesmo adesivo em todos os clientes</div>
+              <div>1. Imprima este QR Code e cole na vitrine do cliente</div>
+              <div>2. Colaborador seleciona a O.S no app e toca Check-in</div>
+              <div>3. Sistema valida GPS automaticamente</div>
+              <div>4. Mesmo adesivo funciona para todos os clientes</div>
             </div>
 
             <div style={{ display:"flex", gap:12, flexDirection:isMobile?"column":"row" }}>
