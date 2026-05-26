@@ -335,17 +335,37 @@ function CheckinModal({ order, onClose, onSuccess, theme, isGlass, isMobile }) {
               value={notes} onChange={e => setNotes(e.target.value)}
             />
 
-            <div style={{ ...S.gps, color: location ? "#22c55e" : "#475569" }}>
-              {location ? "📍 Localização capturada ✓" : "📍 Sem localização GPS"}
+            {/* GPS status em tempo real */}
+            <div style={{ fontSize:12, marginBottom:14, padding:"8px 12px", borderRadius:8,
+              background: location ? "rgba(34,197,94,0.08)" : "rgba(245,158,11,0.08)",
+              border: `1px solid ${location ? "rgba(34,197,94,0.2)" : "rgba(245,158,11,0.2)"}`,
+              color: location ? "#4ade80" : "#f59e0b" }}>
+              {location
+                ? `📍 GPS ativo — lat: ${location.lat.toFixed(5)}, lon: ${location.lon.toFixed(5)}`
+                : "⏳ Aguardando GPS... (certifique-se de permitir localização)"}
             </div>
 
-            {error && <div style={S.err}>⚠️ {error}</div>}
+            {/* Erro FIXO — não some até fechar */}
+            {error && (
+              <div style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", color:"#f87171", padding:"12px 16px", borderRadius:10, fontSize:13, marginBottom:14 }}>
+                <div style={{ fontWeight:700, marginBottom:4 }}>⚠️ Não foi possível registrar</div>
+                <div>{error}</div>
+                <button style={{ marginTop:10, width:"100%", padding:"8px 0", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, color:"#f87171", fontWeight:600, cursor:"pointer", fontFamily:"inherit", fontSize:12 }}
+                  onClick={() => { setError(""); setStep("scanning"); }}>
+                  ← Tentar escanear novamente
+                </button>
+              </div>
+            )}
 
-            <button style={{ ...(action==="start" ? S.btnBlue : S.btnGreen), opacity: sending?0.6:1, cursor: sending?"not-allowed":"pointer" }}
-              onClick={confirmar} disabled={sending}>
-              {sending ? "Registrando..." : action==="start" ? "✓ Confirmar entrada" : "✓ Confirmar saída"}
-            </button>
-            <button style={S.btnGhost} onClick={() => setStep("scanning")} disabled={sending}>← Escanear novamente</button>
+            {!error && (
+              <>
+                <button style={{ ...(action==="start" ? S.btnBlue : S.btnGreen), opacity: (sending || !location)?0.6:1, cursor: (sending || !location)?"not-allowed":"pointer" }}
+                  onClick={confirmar} disabled={sending || !location}>
+                  {sending ? "Registrando..." : !location ? "Aguardando GPS..." : action==="start" ? "✓ Confirmar entrada" : "✓ Confirmar saída"}
+                </button>
+                <button style={S.btnGhost} onClick={() => setStep("scanning")} disabled={sending}>← Escanear novamente</button>
+              </>
+            )}
           </>
         )}
 
@@ -438,8 +458,8 @@ export default function Orders() {
 
   useEffect(() => {
     fetchAll();
-    // Polling a cada 30s para tempo real
-    pollingRef.current = setInterval(fetchOrders, 30000);
+    // Polling a cada 15s para tempo real sem sobrecarregar
+    pollingRef.current = setInterval(fetchOrders, 15000);
     return () => clearInterval(pollingRef.current);
   }, []);
 
