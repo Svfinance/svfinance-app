@@ -808,6 +808,25 @@ export default function Clients() {
 
             <div style={{ display:"flex", justifyContent:"flex-end", gap:12, marginTop:24, flexDirection:isMobile?"column":"row" }}>
               <button style={{ background:isGlass?"rgba(255,255,255,0.3)":theme.bgCard, color:theme.textSecondary, border:`1px solid ${isGlass?"rgba(255,255,255,0.5)":theme.borderCard}`, borderRadius:10, padding:"10px 20px", fontWeight:600, cursor:"pointer", width:isMobile?"100%":"auto" }} onClick={() => setDetailModal(false)}>Fechar</button>
+              {/* Botão para salvar GPS exato no local */}
+              <button style={{ background:"rgba(34,197,94,0.12)", color:"#22c55e", border:"1px solid rgba(34,197,94,0.3)", borderRadius:10, padding:"10px 20px", fontWeight:600, cursor:"pointer", width:isMobile?"100%":"auto" }}
+                onClick={async () => {
+                  if (!navigator.geolocation) { showToast("GPS não disponível.", "error"); return; }
+                  navigator.geolocation.getCurrentPosition(async pos => {
+                    try {
+                      const res = await fetch(`${API}/clients/${detailClient.id}/set-location`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+                        body: JSON.stringify({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+                      });
+                      const data = await res.json();
+                      if (res.ok) { showToast("📍 Localização exata salva!"); fetchClients(); setDetailModal(false); }
+                      else showToast(data.msg || "Erro.", "error");
+                    } catch { showToast("Erro de conexão.", "error"); }
+                  }, () => showToast("GPS negado ou indisponível.", "error"), { enableHighAccuracy: true, maximumAge: 0 });
+                }}>
+                📍 Salvar localização exata aqui
+              </button>
               <button style={{ background:theme.primaryGrad, color:"#fff", border:"none", borderRadius:10, padding:"10px 20px", fontWeight:600, cursor:"pointer", boxShadow:`0 4px 15px ${theme.primary}44`, width:isMobile?"100%":"auto" }} onClick={() => { setDetailModal(false); openEdit(detailClient); }}>✏️ Editar</button>
             </div>
           </div>
