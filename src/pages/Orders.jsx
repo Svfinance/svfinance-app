@@ -188,44 +188,30 @@ function CheckinModal({ order, onClose, onSuccess, theme, isGlass, isMobile }) {
     setError("");
     try {
       let res, data;
-      if (action === "start") {
-        res = await fetch(`${API}/checkin/${order.client_id}/start`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
-          body: JSON.stringify({
-            order_id: order.id,
-            lat:      location?.lat || null,
-            lon:      location?.lon || null,
-            notes:    notes || null,
-            qr_token: QR_TOKEN,
-          }),
-        });
-      } else {
-        res = await fetch(`${API}/checkin/${openChk.checkin_id}/finish`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
-          body: JSON.stringify({
-            lat:      location?.lat || null,
-            lon:      location?.lon || null,
-            notes:    notes || null,
-            qr_token: QR_TOKEN,
-          }),
-        });
-      }
+      const endpoint = action === "start"
+        ? `${API}/checkin/${order.client_id}/start`
+        : `${API}/checkin/${openChk.checkin_id}/finish`;
+      const body = action === "start"
+        ? { order_id: order.id, lat: location?.lat||null, lon: location?.lon||null, notes: notes||null, qr_token: QR_TOKEN }
+        : { lat: location?.lat||null, lon: location?.lon||null, notes: notes||null, qr_token: QR_TOKEN };
+
+      res  = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify(body),
+      });
       data = await res.json();
+
       if (!res.ok) {
-        // Erro fixo — não some, fica visível até usuário fechar
-        setError(data.msg || "Erro ao registrar.");
-        setStep("confirming");
-        setSending(false);
+        setError(data.msg || "Erro ao registrar. Tente novamente.");
+        // NÃO muda o step — fica em confirming com erro visível
         return;
       }
       setResult({ ...data, action });
       setStep("success");
       onSuccess();
-    } catch {
-      setError("Erro de conexão. Verifique sua internet.");
-      setStep("confirming");
+    } catch (e) {
+      setError("Erro de conexão: " + (e.message || "verifique sua internet."));
     } finally {
       setSending(false);
     }
