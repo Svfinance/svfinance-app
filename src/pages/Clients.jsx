@@ -687,10 +687,10 @@ export default function Clients() {
                   <input style={inputStyle} type="number" min="1" max="31" placeholder="Ex: 10" value={form.contrato_dia_pagamento} onChange={e=>setForm({...form,contrato_dia_pagamento:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
                 </div>
 
-                {/* Dias da semana */}
-                {form.contrato_tipo !== "avulso" && form.contrato_tipo !== "mensal" && form.contrato_tipo !== "anual" && (
+                {/* Dias da semana — aparece para todos exceto avulso */}
+                {form.contrato_tipo !== "avulso" && (
                   <div style={{ display:"flex", flexDirection:"column", gap:8, gridColumn:"1 / -1" }}>
-                    {labelInput("Dias de execução")}
+                    {labelInput("Dias de atendimento")}
                     <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                       {DIAS_SEMANA.map(d => {
                         const selecionados = (form.contrato_dias_semana || "").split(",").filter(Boolean);
@@ -714,7 +714,10 @@ export default function Clients() {
                       })}
                     </div>
                     <span style={{ fontSize:11, color:theme.textMuted }}>
-                      {form.contrato_tipo === "quinzenal" ? "Selecione 2 dias por semana" : "Selecione 1 dia por semana"}
+                      {form.contrato_tipo === "semanal"   && "Selecione 1 ou mais dias por semana"}
+                      {form.contrato_tipo === "quinzenal" && "Selecione os dias das 2 visitas mensais"}
+                      {form.contrato_tipo === "mensal"    && "Selecione o dia preferencial de atendimento"}
+                      {form.contrato_tipo === "anual"     && "Selecione os dias preferidos de atendimento"}
                     </span>
                   </div>
                 )}
