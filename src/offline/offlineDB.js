@@ -215,3 +215,23 @@ export async function countAllPending() {
   const [c, m] = await Promise.all([countCheckins(), countMutations()]);
   return c + m;
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// COMPATIBILIDADE LEGADA (não remover)
+// Mantém compatibilidade com syncEngine.js / useOffline.js
+// ════════════════════════════════════════════════════════════════════════════
+
+// Fila genérica antiga → usa mutations internamente
+export async function getQueue() {
+  return await getMutations();
+}
+
+// Remove item da fila antiga → remove mutation
+export async function removeFromQueue(localId) {
+  return await removeMutation(localId);
+}
+
+// Contador antigo da fila → mutations pendentes
+export async function queueCount() {
+  return await countMutations();
+}
