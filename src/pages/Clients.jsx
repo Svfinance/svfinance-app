@@ -4,11 +4,11 @@ import { useTheme } from "../contexts/ThemeContext";
 import PageLayout from "../components/layout/PageLayout";
 import Sidebar from "../components/layout/Sidebar";
 import logoGif from "../assets/video.gif";
+import { enqueueMutation, getMutationsByEntity, tmpId, saveSnapshot, getSnapshot } from "../offline/offlineDB";
 
 const API   = "https://api.svfinance.com.br/api";
 const token = () => localStorage.getItem("token");
 
-// Token universal gravado no QR Code — mesmo valor do checkin_service.py
 const QR_UNIVERSAL_TOKEN = "sv-checkin-universal";
 
 function useIsMobile() {
@@ -45,11 +45,11 @@ export default function Clients() {
   const navigate   = useNavigate();
   const qrCanvasRef = useRef(null);
 
-  // URL da imagem QR via quickchart.io (gratuito, sem instalação)
   const QR_IMG_URL = `https://quickchart.io/qr?text=${encodeURIComponent(QR_UNIVERSAL_TOKEN)}&size=280&margin=2&ecLevel=H&dark=0a0f1e&light=ffffff`;
 
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
   const [clients,        setClients]        = useState([]);
+  const [pending,        setPending]        = useState([]); // criados offline
   const [loading,        setLoading]        = useState(true);
   const [search,         setSearch]         = useState("");
   const [modalOpen,      setModalOpen]      = useState(false);
@@ -61,33 +61,32 @@ export default function Clients() {
   const [form,           setForm]           = useState(EMPTY_FORM);
   const [toast,          setToast]          = useState(null);
   const [cepLoading,     setCepLoading]     = useState(false);
-  const [geoStatus,      setGeoStatus]      = useState(null); // "ok" | "warn" | null
+  const [geoStatus,      setGeoStatus]      = useState(null);
+
+  // ── Carrega pendências offline ───────────────────────────────────────────
+  async function loadPending() {
+    try {
+      const muts = await getMutationsByEntity("client");
+      setPending(muts.map(m => ({
+        ...m.payload,
+        id: m.tmp_ref,
+        __pending: true,
+      })));
+    } catch { setPending([]); }
+  }
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
-
-  const CACHE_KEY = "sv_clients";
-  const CACHE_TTL = 60000;
-
-  function cacheGet(key) {
-    try {
-      const raw = sessionStorage.getItem(key);
-      if (!raw) return null;
-      const { data, ts } = JSON.parse(raw);
-      if (Date.now() - ts > CACHE_TTL) { sessionStorage.removeItem(key); return null; }
-      return data;
-    } catch { return null; }
-  }
-
-  function cacheSet(key, data) {
-    try { sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })); } catch {}
-  }
-
   async function fetchClients() {
     setLoading(true);
 
-    // Mostra cache imediatamente
-    const cached = cacheGet(CACHE_KEY);
-    if (cached) { setClients(cached); setLoading(false); }
+    // 1) snapshot offline imediato
+    const snap = await getSnapshot("clients");
+    if (snap) { setClients(snap); setLoading(false); }
+
+    await loadPending();
+
+    // 2) se offline, fica no snapshot
+    if (!navigator.onLine) { setLoading(false); return; }
 
     try {
       const res = await fetch(`${API}/clients`, {
@@ -97,12 +96,18 @@ export default function Clients() {
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       setClients(list);
-      cacheSet(CACHE_KEY, list);
-    } catch { if (!cached) showToast("Erro ao carregar clientes.", "error"); }
+      saveSnapshot("clients", list);
+    } catch { /* mantém snapshot */ }
     finally { setLoading(false); }
   }
 
   async function fetchDetail(id) {
+    // pendentes não têm detalhe no servidor
+    if (String(id).startsWith("tmp")) {
+      const p = pending.find(x => x.id === id);
+      if (p) { setDetailClient({ ...p, quotes:[], orders:[] }); setDetailModal(true); }
+      return;
+    }
     try {
       const res  = await fetch(`${API}/clients/${id}`, {
         headers: { Authorization: `Bearer ${token()}` }
@@ -113,13 +118,18 @@ export default function Clients() {
     } catch { showToast("Erro ao carregar detalhes.", "error"); }
   }
 
-  useEffect(() => { fetchClients(); }, []);
+  useEffect(() => {
+    fetchClients();
+    const onSynced = () => fetchClients();
+    window.addEventListener("sv_synced", onSynced);
+    return () => window.removeEventListener("sv_synced", onSynced);
+  }, []);
 
   // ── CEP automático ─────────────────────────────────────────────────────────
-
   async function buscarCep(cep) {
     const limpo = cep.replace(/\D/g, "");
     if (limpo.length !== 8) return;
+    if (!navigator.onLine) { showToast("CEP precisa de internet.", "warn"); return; }
 
     setCepLoading(true);
     setGeoStatus(null);
@@ -145,10 +155,7 @@ export default function Clients() {
   }
 
   // ── QR Code universal ──────────────────────────────────────────────────────
-
-  async function abrirQrModal() {
-    setQrModal(true);
-  }
+  async function abrirQrModal() { setQrModal(true); }
 
   function imprimirQr() {
     const janela = window.open("", "_blank");
@@ -191,14 +198,12 @@ export default function Clients() {
   }
 
   // ── Toast ──────────────────────────────────────────────────────────────────
-
   function showToast(msg, type = "success") {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
   }
 
   // ── Modal abrir/fechar ─────────────────────────────────────────────────────
-
   function openCreate() {
     setEditing(null);
     setForm(EMPTY_FORM);
@@ -207,6 +212,7 @@ export default function Clients() {
   }
 
   function openEdit(c) {
+    if (c.__pending) { showToast("Cliente ainda não sincronizado. Edite após conectar.", "warn"); return; }
     setEditing(c);
     setForm({
       codigo:      c.codigo      || "",
@@ -239,12 +245,24 @@ export default function Clients() {
 
   function closeModal() { setModalOpen(false); setEditing(null); setGeoStatus(null); }
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
-
+  // ── Submit (com fallback offline na CRIAÇÃO) ───────────────────────────────
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.name.trim()) { showToast("Nome é obrigatório.", "error"); return; }
 
+    // ── OFFLINE: só criação. Edição precisa de internet. ──
+    if (!navigator.onLine) {
+      if (editing) { showToast("Edição precisa de internet.", "warn"); return; }
+      const ref = tmpId("tmpcli");
+      await enqueueMutation("client", { ...form }, { tmp_ref: ref });
+      showToast("📴 Cliente salvo offline — sincroniza ao reconectar.");
+      sessionStorage.removeItem("sv_clients");
+      closeModal();
+      fetchClients();
+      return;
+    }
+
+    // ── ONLINE ──
     const url    = editing ? `${API}/clients/${editing.id}` : `${API}/clients`;
     const method = editing ? "PUT" : "POST";
 
@@ -266,10 +284,23 @@ export default function Clients() {
         const err = await res.json();
         showToast(err.msg || "Erro.", "error");
       }
-    } catch { showToast("Erro de conexão.", "error"); }
+    } catch {
+      // rede caiu no meio → salva offline como criação
+      if (!editing) {
+        const ref = tmpId("tmpcli");
+        await enqueueMutation("client", { ...form }, { tmp_ref: ref });
+        showToast("📴 Conexão instável — cliente salvo offline.");
+        closeModal();
+        fetchClients();
+      } else {
+        showToast("Erro de conexão.", "error");
+      }
+    }
   }
 
   async function handleDelete(id) {
+    if (String(id).startsWith("tmp")) { showToast("Item offline ainda não sincronizado.", "warn"); setDeleteConfirm(null); return; }
+    if (!navigator.onLine) { showToast("Exclusão precisa de internet.", "warn"); setDeleteConfirm(null); return; }
     try {
       const res = await fetch(`${API}/clients/${id}`, {
         method: "DELETE",
@@ -285,10 +316,10 @@ export default function Clients() {
     } catch { showToast("Erro de conexão.", "error"); }
   }
 
-  // ── Filtro ─────────────────────────────────────────────────────────────────
-
-  const filtered = clients.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
+  // ── Filtro (mescla servidor + pendentes) ───────────────────────────────────
+  const allClients = [...pending, ...clients];
+  const filtered = allClients.filter(c =>
+    (c.name || "").toLowerCase().includes(search.toLowerCase()) ||
     (c.email    || "").toLowerCase().includes(search.toLowerCase()) ||
     (c.phone    || "").includes(search) ||
     (c.document || "").includes(search) ||
@@ -296,7 +327,6 @@ export default function Clients() {
   );
 
   // ── Estilos ────────────────────────────────────────────────────────────────
-
   const inputStyle = {
     background:  theme.bgInput,
     border:      `1px solid ${isGlass ? "rgba(255,255,255,0.4)" : theme.borderInput}`,
@@ -401,7 +431,6 @@ export default function Clients() {
             </div>
           </div>
           <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-            {/* Botão QR Code Universal */}
             <button
               style={{ background:"rgba(79,142,247,0.12)", color:"#4f8ef7", border:"1px solid rgba(79,142,247,0.3)", borderRadius:10, padding:"10px 16px", fontWeight:600, cursor:"pointer", fontSize:"0.85rem", whiteSpace:"nowrap" }}
               onClick={abrirQrModal}
@@ -417,12 +446,19 @@ export default function Clients() {
           </div>
         </div>
 
+        {/* AVISO OFFLINE */}
+        {!navigator.onLine && (
+          <div style={{ background:"rgba(245,158,11,0.1)", border:"1px solid rgba(245,158,11,0.3)", color:"#f59e0b", padding:"10px 16px", borderRadius:10, fontSize:13, marginBottom:20, display:"flex", alignItems:"center", gap:8 }}>
+            📴 Você está offline. Novos clientes serão salvos e sincronizados automaticamente ao reconectar.
+          </div>
+        )}
+
         {/* CARDS RESUMO */}
         <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:16, marginBottom:28 }}>
           {[
-            { icon:"👥", label:"Total de Clientes",  value:clients.length,                                color:theme.primary, border:isGlass?"rgba(255,255,255,0.5)":`${theme.primary}44` },
+            { icon:"👥", label:"Total de Clientes",  value:allClients.length,                              color:theme.primary, border:isGlass?"rgba(255,255,255,0.5)":`${theme.primary}44` },
             { icon:"📍", label:"Com GPS cadastrado", value:clients.filter(c=>c.latitude).length,          color:"#22c55e",     border:isGlass?"rgba(255,255,255,0.5)":"rgba(34,197,94,0.3)" },
-            { icon:"📋", label:"Com Orçamentos",     value:clients.filter(c=>c.quotes?.length>0).length,  color:theme.warning, border:isGlass?"rgba(255,255,255,0.5)":`${theme.warning}44` },
+            { icon:"⏳", label:"Pendentes (offline)", value:pending.length,                               color:"#f59e0b",     border:isGlass?"rgba(255,255,255,0.5)":"rgba(245,158,11,0.3)" },
             { icon:"📦", label:"Com Pedidos",        value:clients.filter(c=>c.orders?.length>0).length,  color:theme.income,  border:isGlass?"rgba(255,255,255,0.5)":`${theme.income}44`  },
           ].map((c,i) => (
             <div key={i} className="card3d-cl" style={{ border:`1px solid ${c.border}` }}>
@@ -469,14 +505,17 @@ export default function Clients() {
               </thead>
               <tbody>
                 {filtered.map(c => (
-                  <tr key={c.id} className="cl-row" style={{ borderBottom:`1px solid ${isGlass?"rgba(255,255,255,0.15)":theme.border}`, transition:"background 0.15s", cursor:"pointer" }} onClick={() => fetchDetail(c.id)}>
+                  <tr key={c.id} className="cl-row" style={{ borderBottom:`1px solid ${isGlass?"rgba(255,255,255,0.15)":theme.border}`, transition:"background 0.15s", cursor:"pointer", opacity: c.__pending ? 0.85 : 1 }} onClick={() => fetchDetail(c.id)}>
                     <td style={{ padding:"12px 16px", verticalAlign:"middle" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                         <div style={{ width:36, height:36, borderRadius:"50%", background:isGlass?"rgba(255,255,255,0.4)":`${theme.primary}22`, border:`1px solid ${isGlass?"rgba(255,255,255,0.5)":`${theme.primary}44`}`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:"0.85rem", color:theme.primary, flexShrink:0 }}>
-                          {c.name.charAt(0).toUpperCase()}
+                          {(c.name || "?").charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <div style={{ fontWeight:600, color:theme.textPrimary }}>{c.name}</div>
+                          <div style={{ fontWeight:600, color:theme.textPrimary, display:"flex", alignItems:"center", gap:6 }}>
+                            {c.name}
+                            {c.__pending && <span style={{ fontSize:9, background:"rgba(245,158,11,0.15)", border:"1px solid rgba(245,158,11,0.3)", color:"#f59e0b", borderRadius:6, padding:"1px 6px", fontWeight:700 }}>⏳ PENDENTE</span>}
+                          </div>
                           {isMobile && c.email && <div style={{ fontSize:"0.75rem", color:theme.textMuted }}>{c.email}</div>}
                         </div>
                       </div>
@@ -507,8 +546,6 @@ export default function Clients() {
       {qrModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, backdropFilter:"blur(6px)", padding:"16px" }} onClick={() => setQrModal(false)}>
           <div style={{ background:"#0a0f1e", border:"1px solid rgba(79,142,247,0.2)", borderRadius:24, padding:isMobile?"24px 20px":36, width:"100%", maxWidth:400, boxShadow:"0 24px 80px rgba(0,0,0,0.7)", textAlign:"center", maxHeight:"92vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
-
-            {/* Header com X */}
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
               <div>
                 <div style={{ fontSize:10, fontWeight:800, letterSpacing:"4px", color:"#4f8ef7", textTransform:"uppercase" }}>SV Finance</div>
@@ -524,7 +561,6 @@ export default function Clients() {
               1 adesivo para todos os clientes — identificação por GPS + O.S
             </div>
 
-            {/* QR Code via quickchart.io */}
             <div style={{ background:"#fff", borderRadius:16, padding:16, display:"inline-block", marginBottom:16, boxShadow:"0 8px 30px rgba(0,0,0,0.3)" }}>
               <img
                 src={QR_IMG_URL}
@@ -564,10 +600,15 @@ export default function Clients() {
               <button style={{ background:isGlass?"rgba(255,255,255,0.4)":theme.bgCard, border:"none", color:theme.textPrimary, width:32, height:32, borderRadius:8, cursor:"pointer", fontSize:14 }} onClick={closeModal}>✕</button>
             </div>
 
+            {!navigator.onLine && !editing && (
+              <div style={{ background:"rgba(245,158,11,0.1)", border:"1px solid rgba(245,158,11,0.3)", color:"#f59e0b", padding:"8px 12px", borderRadius:8, fontSize:12, marginBottom:16 }}>
+                📴 Offline — o CEP não será buscado automaticamente. O cliente será salvo e sincronizado depois.
+              </div>
+            )}
+
             <form onSubmit={handleSubmit}>
               <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:16, marginBottom:8 }}>
 
-                {/* ── DADOS BÁSICOS ── */}
                 <div style={{ gridColumn:"1 / -1", color:theme.primary, fontSize:"0.75rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"1.5px", marginBottom:4, paddingBottom:6, borderBottom:`1px solid ${isGlass?"rgba(255,255,255,0.2)":theme.borderCard}` }}>
                   👤 Dados do Cliente
                 </div>
@@ -595,7 +636,6 @@ export default function Clients() {
                   <input style={inputStyle} placeholder="(44) 99999-9999" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
                 </div>
 
-                {/* ── ENDEREÇO ── */}
                 <div style={{ gridColumn:"1 / -1", color:theme.primary, fontSize:"0.75rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"1.5px", marginTop:8, marginBottom:4, paddingBottom:6, borderBottom:`1px solid ${isGlass?"rgba(255,255,255,0.2)":theme.borderCard}` }}>
                   📍 Endereço
                 </div>
@@ -639,12 +679,10 @@ export default function Clients() {
                   <input style={inputStyle} placeholder="PR" maxLength={2} value={form.uf} onChange={e=>setForm({...form,uf:e.target.value.toUpperCase()})} onFocus={focusIn} onBlur={focusOut}/>
                 </div>
 
-                {/* ── CONTRATO ── */}
                 <div style={{ gridColumn:"1 / -1", color:theme.primary, fontSize:"0.75rem", fontWeight:700, textTransform:"uppercase", letterSpacing:"1.5px", marginTop:8, marginBottom:4, paddingBottom:6, borderBottom:`1px solid ${isGlass?"rgba(255,255,255,0.2)":theme.borderCard}` }}>
                   📋 Contrato
                 </div>
 
-                {/* Tipo + Status */}
                 <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                   {labelInput("Tipo de contrato")}
                   <select style={{ ...inputStyle, cursor:"pointer" }} value={form.contrato_tipo} onChange={e=>setForm({...form,contrato_tipo:e.target.value})} onFocus={focusIn} onBlur={focusOut}>
@@ -664,7 +702,6 @@ export default function Clients() {
                   </select>
                 </div>
 
-                {/* Valor + Forma de pagamento */}
                 <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                   {labelInput("Valor do contrato (R$)")}
                   <input style={inputStyle} type="number" step="0.01" placeholder="0,00" value={form.contrato_valor} onChange={e=>setForm({...form,contrato_valor:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
@@ -681,13 +718,11 @@ export default function Clients() {
                   </select>
                 </div>
 
-                {/* Dia de pagamento + Dias da semana de execução */}
                 <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                   {labelInput("Dia de pagamento (dia do mês)")}
                   <input style={inputStyle} type="number" min="1" max="31" placeholder="Ex: 10" value={form.contrato_dia_pagamento} onChange={e=>setForm({...form,contrato_dia_pagamento:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
                 </div>
 
-                {/* Dias da semana — aparece para todos exceto avulso */}
                 {form.contrato_tipo !== "avulso" && (
                   <div style={{ display:"flex", flexDirection:"column", gap:8, gridColumn:"1 / -1" }}>
                     {labelInput("Dias de atendimento")}
@@ -722,7 +757,6 @@ export default function Clients() {
                   </div>
                 )}
 
-                {/* Início + Fim */}
                 <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                   {labelInput("Início do contrato")}
                   <input style={{ ...inputStyle, colorScheme }} type="date" value={form.contrato_inicio} onChange={e=>setForm({...form,contrato_inicio:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
@@ -732,13 +766,11 @@ export default function Clients() {
                   <input style={{ ...inputStyle, colorScheme }} type="date" value={form.contrato_fim} onChange={e=>setForm({...form,contrato_fim:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
                 </div>
 
-                {/* Observações do contrato */}
                 <div style={{ display:"flex", flexDirection:"column", gap:6, gridColumn:"1 / -1" }}>
                   {labelInput("Observações do contrato")}
                   <textarea style={{ ...inputStyle, resize:"vertical", minHeight:60 }} placeholder="Ex: cliente prefere manhãs, acesso pelo portão lateral..." value={form.contrato_observacoes} onChange={e=>setForm({...form,contrato_observacoes:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
                 </div>
 
-                {/* ── OBSERVAÇÕES GERAIS ── */}
                 <div style={{ display:"flex", flexDirection:"column", gap:6, gridColumn:"1 / -1" }}>
                   {labelInput("Observações gerais")}
                   <textarea style={{ ...inputStyle, resize:"vertical", minHeight:60 }} placeholder="Informações adicionais..." value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} onFocus={focusIn} onBlur={focusOut}/>
@@ -763,23 +795,19 @@ export default function Clients() {
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
               <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                 <div style={{ width:48, height:48, borderRadius:"50%", background:isGlass?"rgba(255,255,255,0.4)":`${theme.primary}22`, border:`2px solid ${isGlass?"rgba(255,255,255,0.6)":`${theme.primary}44`}`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:"1.2rem", color:theme.primary }}>
-                  {detailClient.name.charAt(0).toUpperCase()}
+                  {(detailClient.name || "?").charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <h2 style={{ margin:0, fontSize:"1.2rem", fontWeight:700, color:theme.textPrimary }}>{detailClient.name}</h2>
                   <p style={{ margin:0, fontSize:"0.8rem", color:theme.textMuted }}>
-                    Cadastrado em {detailClient.created_at?.split("-").reverse().join("/") || "—"}
-                    {" · "}
-                    <span style={{ color: detailClient.latitude ? "#22c55e" : "#f59e0b" }}>
-                      {detailClient.latitude ? "📍 GPS ativo" : "⚠️ Sem GPS"}
-                    </span>
+                    {detailClient.__pending ? "⏳ Aguardando sincronização" : `Cadastrado em ${detailClient.created_at?.split("-").reverse().join("/") || "—"}`}
+                    {!detailClient.__pending && <> {" · "}<span style={{ color: detailClient.latitude ? "#22c55e" : "#f59e0b" }}>{detailClient.latitude ? "📍 GPS ativo" : "⚠️ Sem GPS"}</span></>}
                   </p>
                 </div>
               </div>
               <button style={{ background:isGlass?"rgba(255,255,255,0.4)":theme.bgCard, border:"none", color:theme.textPrimary, width:32, height:32, borderRadius:8, cursor:"pointer", fontSize:14 }} onClick={() => setDetailModal(false)}>✕</button>
             </div>
 
-            {/* Dados */}
             <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr", gap:12, marginBottom:20, background:isGlass?"rgba(255,255,255,0.15)":theme.bgCard, border:`1px solid ${isGlass?"rgba(255,255,255,0.3)":theme.borderCard}`, borderRadius:12, padding:"16px 20px" }}>
               {[
                 { label:"Email",     value:detailClient.email    },
@@ -803,76 +831,81 @@ export default function Clients() {
               )}
             </div>
 
-            {/* Orçamentos */}
-            <div style={{ marginBottom:20 }}>
-              <p style={{ fontSize:"11px", fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:theme.textMuted, margin:"0 0 10px 0" }}>📋 Orçamentos ({detailClient.quotes?.length || 0})</p>
-              {detailClient.quotes?.length > 0 ? (
-                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                  {detailClient.quotes.map(q => {
-                    const s = STATUS_COLOR[q.status] || STATUS_COLOR.draft;
-                    return (
-                      <div key={q.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:isGlass?"rgba(255,255,255,0.15)":theme.bgCard, border:`1px solid ${isGlass?"rgba(255,255,255,0.3)":theme.borderCard}`, borderRadius:10, padding:"10px 14px" }}>
-                        <div>
-                          <span style={{ fontWeight:600, color:theme.primary, fontSize:"0.88rem" }}>{q.number}</span>
-                          <span style={{ marginLeft:8, fontSize:"0.75rem", color:theme.textMuted }}>{q.created_at?.split("-").reverse().join("/")}</span>
-                        </div>
-                        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                          <span style={{ fontSize:"0.88rem", fontWeight:600, color:theme.income }}>{fmt(q.total)}</span>
-                          <span style={{ fontSize:"0.72rem", fontWeight:600, padding:"2px 8px", borderRadius:20, background:s.bg, color:s.color }}>{STATUS_LABEL[q.status] || q.status}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
+            {!detailClient.__pending && (
+              <>
+                <div style={{ marginBottom:20 }}>
+                  <p style={{ fontSize:"11px", fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:theme.textMuted, margin:"0 0 10px 0" }}>📋 Orçamentos ({detailClient.quotes?.length || 0})</p>
+                  {detailClient.quotes?.length > 0 ? (
+                    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                      {detailClient.quotes.map(q => {
+                        const s = STATUS_COLOR[q.status] || STATUS_COLOR.draft;
+                        return (
+                          <div key={q.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:isGlass?"rgba(255,255,255,0.15)":theme.bgCard, border:`1px solid ${isGlass?"rgba(255,255,255,0.3)":theme.borderCard}`, borderRadius:10, padding:"10px 14px" }}>
+                            <div>
+                              <span style={{ fontWeight:600, color:theme.primary, fontSize:"0.88rem" }}>{q.number}</span>
+                              <span style={{ marginLeft:8, fontSize:"0.75rem", color:theme.textMuted }}>{q.created_at?.split("-").reverse().join("/")}</span>
+                            </div>
+                            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                              <span style={{ fontSize:"0.88rem", fontWeight:600, color:theme.income }}>{fmt(q.total)}</span>
+                              <span style={{ fontSize:"0.72rem", fontWeight:600, padding:"2px 8px", borderRadius:20, background:s.bg, color:s.color }}>{STATUS_LABEL[q.status] || q.status}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : <p style={{ color:theme.textMuted, fontSize:"0.85rem" }}>Nenhum orçamento.</p>}
                 </div>
-              ) : <p style={{ color:theme.textMuted, fontSize:"0.85rem" }}>Nenhum orçamento.</p>}
-            </div>
 
-            {/* Pedidos */}
-            <div>
-              <p style={{ fontSize:"11px", fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:theme.textMuted, margin:"0 0 10px 0" }}>📦 Pedidos / O.S ({detailClient.orders?.length || 0})</p>
-              {detailClient.orders?.length > 0 ? (
-                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                  {detailClient.orders.map(o => {
-                    const s = STATUS_COLOR[o.status] || STATUS_COLOR.open;
-                    return (
-                      <div key={o.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:isGlass?"rgba(255,255,255,0.15)":theme.bgCard, border:`1px solid ${isGlass?"rgba(255,255,255,0.3)":theme.borderCard}`, borderRadius:10, padding:"10px 14px" }}>
-                        <div>
-                          <span style={{ fontWeight:600, color:theme.primary, fontSize:"0.88rem" }}>{o.number}</span>
-                          <span style={{ marginLeft:8, fontSize:"0.75rem", color:theme.textMuted }}>{o.created_at?.split("-").reverse().join("/")}</span>
-                        </div>
-                        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                          <span style={{ fontSize:"0.88rem", fontWeight:600, color:theme.income }}>{fmt(o.total)}</span>
-                          <span style={{ fontSize:"0.72rem", fontWeight:600, padding:"2px 8px", borderRadius:20, background:s.bg, color:s.color }}>{STATUS_LABEL[o.status] || o.status}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div>
+                  <p style={{ fontSize:"11px", fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:theme.textMuted, margin:"0 0 10px 0" }}>📦 Pedidos / O.S ({detailClient.orders?.length || 0})</p>
+                  {detailClient.orders?.length > 0 ? (
+                    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                      {detailClient.orders.map(o => {
+                        const s = STATUS_COLOR[o.status] || STATUS_COLOR.open;
+                        return (
+                          <div key={o.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:isGlass?"rgba(255,255,255,0.15)":theme.bgCard, border:`1px solid ${isGlass?"rgba(255,255,255,0.3)":theme.borderCard}`, borderRadius:10, padding:"10px 14px" }}>
+                            <div>
+                              <span style={{ fontWeight:600, color:theme.primary, fontSize:"0.88rem" }}>{o.number}</span>
+                              <span style={{ marginLeft:8, fontSize:"0.75rem", color:theme.textMuted }}>{o.created_at?.split("-").reverse().join("/")}</span>
+                            </div>
+                            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                              <span style={{ fontSize:"0.88rem", fontWeight:600, color:theme.income }}>{fmt(o.total)}</span>
+                              <span style={{ fontSize:"0.72rem", fontWeight:600, padding:"2px 8px", borderRadius:20, background:s.bg, color:s.color }}>{STATUS_LABEL[o.status] || o.status}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : <p style={{ color:theme.textMuted, fontSize:"0.85rem" }}>Nenhum pedido.</p>}
                 </div>
-              ) : <p style={{ color:theme.textMuted, fontSize:"0.85rem" }}>Nenhum pedido.</p>}
-            </div>
+              </>
+            )}
 
             <div style={{ display:"flex", justifyContent:"flex-end", gap:12, marginTop:24, flexDirection:isMobile?"column":"row" }}>
               <button style={{ background:isGlass?"rgba(255,255,255,0.3)":theme.bgCard, color:theme.textSecondary, border:`1px solid ${isGlass?"rgba(255,255,255,0.5)":theme.borderCard}`, borderRadius:10, padding:"10px 20px", fontWeight:600, cursor:"pointer", width:isMobile?"100%":"auto" }} onClick={() => setDetailModal(false)}>Fechar</button>
-              {/* Botão para salvar GPS exato no local */}
-              <button style={{ background:"rgba(34,197,94,0.12)", color:"#22c55e", border:"1px solid rgba(34,197,94,0.3)", borderRadius:10, padding:"10px 20px", fontWeight:600, cursor:"pointer", width:isMobile?"100%":"auto" }}
-                onClick={async () => {
-                  if (!navigator.geolocation) { showToast("GPS não disponível.", "error"); return; }
-                  navigator.geolocation.getCurrentPosition(async pos => {
-                    try {
-                      const res = await fetch(`${API}/clients/${detailClient.id}/set-location`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
-                        body: JSON.stringify({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-                      });
-                      const data = await res.json();
-                      if (res.ok) { showToast("📍 Localização exata salva!"); fetchClients(); setDetailModal(false); }
-                      else showToast(data.msg || "Erro.", "error");
-                    } catch { showToast("Erro de conexão.", "error"); }
-                  }, () => showToast("GPS negado ou indisponível.", "error"), { enableHighAccuracy: true, maximumAge: 0 });
-                }}>
-                📍 Salvar localização exata aqui
-              </button>
-              <button style={{ background:theme.primaryGrad, color:"#fff", border:"none", borderRadius:10, padding:"10px 20px", fontWeight:600, cursor:"pointer", boxShadow:`0 4px 15px ${theme.primary}44`, width:isMobile?"100%":"auto" }} onClick={() => { setDetailModal(false); openEdit(detailClient); }}>✏️ Editar</button>
+              {!detailClient.__pending && (
+                <>
+                  <button style={{ background:"rgba(34,197,94,0.12)", color:"#22c55e", border:"1px solid rgba(34,197,94,0.3)", borderRadius:10, padding:"10px 20px", fontWeight:600, cursor:"pointer", width:isMobile?"100%":"auto" }}
+                    onClick={async () => {
+                      if (!navigator.geolocation) { showToast("GPS não disponível.", "error"); return; }
+                      navigator.geolocation.getCurrentPosition(async pos => {
+                        try {
+                          const res = await fetch(`${API}/clients/${detailClient.id}/set-location`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+                            body: JSON.stringify({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+                          });
+                          const data = await res.json();
+                          if (res.ok) { showToast("📍 Localização exata salva!"); fetchClients(); setDetailModal(false); }
+                          else showToast(data.msg || "Erro.", "error");
+                        } catch { showToast("Erro de conexão.", "error"); }
+                      }, () => showToast("GPS negado ou indisponível.", "error"), { enableHighAccuracy: true, maximumAge: 0 });
+                    }}>
+                    📍 Salvar localização exata aqui
+                  </button>
+                  <button style={{ background:theme.primaryGrad, color:"#fff", border:"none", borderRadius:10, padding:"10px 20px", fontWeight:600, cursor:"pointer", boxShadow:`0 4px 15px ${theme.primary}44`, width:isMobile?"100%":"auto" }} onClick={() => { setDetailModal(false); openEdit(detailClient); }}>✏️ Editar</button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -899,7 +932,7 @@ export default function Clients() {
 
       {/* TOAST */}
       {toast && (
-        <div style={{ position:"fixed", bottom:isMobile?16:28, right:isMobile?16:28, left:isMobile?16:"auto", color:"#fff", padding:"12px 22px", borderRadius:12, fontWeight:600, fontSize:"0.9rem", zIndex:9999, boxShadow:"0 8px 30px rgba(0,0,0,0.4)", background:toast.type==="error"?"#ef4444":theme.primaryGrad, textAlign:isMobile?"center":"left" }}>
+        <div style={{ position:"fixed", bottom:isMobile?16:28, right:isMobile?16:28, left:isMobile?16:"auto", color:"#fff", padding:"12px 22px", borderRadius:12, fontWeight:600, fontSize:"0.9rem", zIndex:9999, boxShadow:"0 8px 30px rgba(0,0,0,0.4)", background:toast.type==="error"?"#ef4444":toast.type==="warn"?"#f59e0b":theme.primaryGrad, textAlign:isMobile?"center":"left" }}>
           {toast.msg}
         </div>
       )}
