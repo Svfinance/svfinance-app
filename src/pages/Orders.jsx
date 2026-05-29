@@ -5,7 +5,7 @@ import PageLayout from "../components/layout/PageLayout";
 import Sidebar from "../components/layout/Sidebar";
 import logoGif from "../assets/video.gif";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { enqueueCheckin, uuid } from "../offline/offlineDB";
+import { enqueueCheckin, uuid, setOrderStatusOverlay, getOrderOverlays } from "../offline/offlineDB";
 import { syncNow } from "../offline/syncEngine";
 
 const API = "https://api.svfinance.com.br/api";
@@ -41,7 +41,7 @@ const EMPTY_FORM = {
   client_id: "", status: "open", notes: "", payment_terms: "", discount: 0,
 };
 
-// ── Scanner com 3 fallbacks ────────────────────────────────────────────────────
+// ── Scanner com 3 fallbacks ──────────────────────────────────────────────────
 // Fluxo: camera → numeric → pin → confirm. Cada um acessível pelas tabs.
 // Código numérico e PIN do scanner são validados localmente (referência client_id).
 function QRScanner({ onDetected, onCancel, action, clientCode }) {
@@ -244,7 +244,7 @@ function QRScanner({ onDetected, onCancel, action, clientCode }) {
   );
 }
 
-// ── Modal de Checkin ───────────────────────────────────────────────────────────
+// ── Modal de Checkin ─────────────────────────────────────────────────────────
 function CheckinModal({ order, onClose, onSuccess, theme, isGlass, isMobile }) {
   const [step, setStep]       = useState("select_action");
   const [action, setAction]   = useState(null);
@@ -313,7 +313,7 @@ function CheckinModal({ order, onClose, onSuccess, theme, isGlass, isMobile }) {
       local_id: uuid(),
     };
     if (action === "start") return { ...base, kind: "start", client_id: order.client_id, order_id: order.id };
-    return { ...base, kind: "finish", checkin_id: openChk?.checkin_id };
+    return { ...base, kind: "finish", checkin_id: openChk?.checkin_id, order_id: order.id };
   }
 
   async function confirmar() {
@@ -323,10 +323,13 @@ function CheckinModal({ order, onClose, onSuccess, theme, isGlass, isMobile }) {
 
     const body = buildBody();
 
-    // ── OFFLINE: enfileira e encerra ────────────────────────────────────────
+    // ── OFFLINE: enfileira, aplica status otimista e encerra ────────────────
     if (!navigator.onLine) {
       try {
         await enqueueCheckin(body);
+        // STATUS OTIMISTA: start → in_progress, finish → done
+        if (action === "start") await setOrderStatusOverlay(order.id, "in_progress");
+        else                    await setOrderStatusOverlay(order.id, "done");
         setResult({ action, offline: true });
         setStep("success");
         setOfflineMsg("Sem internet — registro salvo e será sincronizado automaticamente.");
@@ -366,9 +369,11 @@ function CheckinModal({ order, onClose, onSuccess, theme, isGlass, isMobile }) {
       setStep("success");
       onSuccess();
     } catch (e) {
-      // Falhou a rede no meio → enfileira como offline
+      // Falhou a rede no meio → enfileira como offline + status otimista
       try {
         await enqueueCheckin(body);
+        if (action === "start") await setOrderStatusOverlay(order.id, "in_progress");
+        else                    await setOrderStatusOverlay(order.id, "done");
         setResult({ action, offline: true });
         setStep("success");
         setOfflineMsg("Conexão instável — registro salvo e será sincronizado automaticamente.");
@@ -566,7 +571,7 @@ function CheckinModal({ order, onClose, onSuccess, theme, isGlass, isMobile }) {
   );
 }
 
-// ── Componente principal ───────────────────────────────────────────────────────
+// ── Componente principal ─────────────────────────────────────────────────────
 export default function Orders() {
   const { theme, themeId } = useTheme();
   const isGlass    = themeId === "glass";
@@ -576,6 +581,7 @@ export default function Orders() {
 
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
   const [orders,         setOrders]         = useState([]);
+  const [overlays,       setOverlays]       = useState({}); // status otimista offline
   const [clients,        setClients]        = useState([]);
   const [products,       setProducts]       = useState([]);
   const [loading,        setLoading]        = useState(true);
@@ -610,6 +616,11 @@ export default function Orders() {
     try { sessionStorage.removeItem(key); } catch {}
   }
 
+  // Carrega os overlays de status otimista
+  async function loadOverlays() {
+    try { setOverlays(await getOrderOverlays()); } catch { setOverlays({}); }
+  }
+
   async function fetchOrders() {
     try {
       const res  = await fetch(`${API}/orders`, { headers:{ Authorization:`Bearer ${token()}` } });
@@ -619,6 +630,7 @@ export default function Orders() {
       setOrders(list);
       cacheSet("sv_orders", list);
     } catch {}
+    await loadOverlays();
   }
 
   async function fetchAll() {
@@ -628,6 +640,9 @@ export default function Orders() {
     if (cc) setClients(cc);
     if (cp) setProducts(cp);
     if (co && cc && cp) setLoading(false);
+    await loadOverlays();
+    // Offline: fica no cache
+    if (!navigator.onLine) { setLoading(false); return; }
     try {
       const h = { Authorization:`Bearer ${token()}` };
       const resO = await fetch(`${API}/orders`, { headers:h });
@@ -662,9 +677,13 @@ export default function Orders() {
     // Ao voltar a rede, sincroniza fila e recarrega
     const onOnline = () => { syncNow().then(() => fetchOrders()); };
     window.addEventListener("online", onOnline);
+    // Quando o sync limpa overlays/cria coisas, recarrega
+    const onSynced = () => { fetchOrders(); };
+    window.addEventListener("sv_synced", onSynced);
     return () => {
       clearInterval(pollingRef.current);
       window.removeEventListener("online", onOnline);
+      window.removeEventListener("sv_synced", onSynced);
     };
   }, []);
 
@@ -703,6 +722,7 @@ export default function Orders() {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.client_id) { showToast("Selecione um cliente.", "error"); return; }
+    if (!navigator.onLine) { showToast("Criar O.S aqui precisa de internet. Use a tela de Orçamentos para criar offline.", "warn"); return; }
     const payload = { ...form, client_id:parseInt(form.client_id), discount:parseFloat(form.discount||0), items };
     const url    = editing ? `${API}/orders/${editing.id}` : `${API}/orders`;
     const method = editing ? "PUT" : "POST";
@@ -714,6 +734,7 @@ export default function Orders() {
   }
 
   async function changeStatus(o, status) {
+    if (!navigator.onLine) { showToast("Mudar status manualmente precisa de internet.", "warn"); return; }
     try {
       await fetch(`${API}/orders/${o.id}/status`, {
         method:"PATCH", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token()}` },
@@ -724,6 +745,7 @@ export default function Orders() {
   }
 
   async function handleDelete(id) {
+    if (!navigator.onLine) { showToast("Exclusão precisa de internet.", "warn"); setDeleteConfirm(null); return; }
     try {
       const res = await fetch(`${API}/orders/${id}`, { method:"DELETE", headers:{ Authorization:`Bearer ${token()}` } });
       if (res.ok) { showToast("O.S removida."); setDeleteConfirm(null); cacheInvalidate("sv_orders"); fetchAll(); }
@@ -731,11 +753,20 @@ export default function Orders() {
     } catch { showToast("Erro de conexão.", "error"); }
   }
 
+  // Aplica o status otimista (overlay) por cima dos status do servidor
+  function effectiveStatus(o) {
+    return overlays[String(o.id)] || o.status;
+  }
+
   const filtered = orders.filter(o => {
-    const statusOk = filterStatus==="all" || o.status===filterStatus;
+    const st = effectiveStatus(o);
+    const statusOk = filterStatus==="all" || st===filterStatus;
     const searchOk = o.number.toLowerCase().includes(search.toLowerCase()) || o.client_name.toLowerCase().includes(search.toLowerCase());
     return statusOk && searchOk;
   });
+
+  // Contadores usam o status efetivo (com overlay)
+  const countBy = (s) => orders.filter(o => effectiveStatus(o)===s).length;
 
   const inputStyle   = { background:theme.bgInput, border:`1px solid ${isGlass?"rgba(255,255,255,0.4)":theme.borderInput}`, borderRadius:10, padding:"10px 14px", color:theme.textPrimary, fontSize:"0.9rem", outline:"none", width:"100%", boxSizing:"border-box", transition:"border-color 0.2s", colorScheme, ...(isGlass&&{backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)"}) };
   const selectStyle  = { ...inputStyle, cursor:"pointer" };
@@ -848,7 +879,7 @@ export default function Orders() {
           </div>
         </form>
       </div>
-      {toast&&<div style={{ position:"fixed", bottom:28, right:28, color:"#fff", padding:"12px 22px", borderRadius:12, fontWeight:600, fontSize:"0.9rem", zIndex:9999, background:toast.type==="error"?"#ef4444":theme.primaryGrad }}>{toast.msg}</div>}
+      {toast&&<div style={{ position:"fixed", bottom:28, right:28, color:"#fff", padding:"12px 22px", borderRadius:12, fontWeight:600, fontSize:"0.9rem", zIndex:9999, background:toast.type==="error"?"#ef4444":toast.type==="warn"?"#f59e0b":theme.primaryGrad }}>{toast.msg}</div>}
     </PageLayout>
   );
 
@@ -876,12 +907,18 @@ export default function Orders() {
           <button style={{ ...btnPrimary, whiteSpace:"nowrap" }} onClick={openCreate}>+ Nova O.S</button>
         </div>
 
+        {!navigator.onLine && (
+          <div style={{ background:"rgba(245,158,11,0.1)", border:"1px solid rgba(245,158,11,0.3)", color:"#f59e0b", padding:"10px 16px", borderRadius:10, fontSize:13, marginBottom:20 }}>
+            📴 Você está offline. Check-ins ficam salvos e a O.S muda de status na hora; sincroniza ao reconectar.
+          </div>
+        )}
+
         <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)", gap:16, marginBottom:28 }}>
           {[
-            { icon:"📋", label:"Total",       value:orders.length,                                      color:theme.primary, border:isGlass?"rgba(255,255,255,0.5)":`${theme.primary}44` },
-            { icon:"🔵", label:"Abertas",      value:orders.filter(o=>o.status==="open").length,        color:"#3b82f6",     border:isGlass?"rgba(255,255,255,0.5)":"rgba(59,130,246,0.3)" },
-            { icon:"🟡", label:"Em andamento", value:orders.filter(o=>o.status==="in_progress").length, color:"#f59e0b",     border:isGlass?"rgba(255,255,255,0.5)":"rgba(245,158,11,0.3)" },
-            { icon:"✅", label:"Concluídas",   value:orders.filter(o=>o.status==="done").length,        color:"#22c55e",     border:isGlass?"rgba(255,255,255,0.5)":"rgba(34,197,94,0.3)"  },
+            { icon:"📋", label:"Total",       value:orders.length,            color:theme.primary, border:isGlass?"rgba(255,255,255,0.5)":`${theme.primary}44` },
+            { icon:"🔵", label:"Abertas",      value:countBy("open"),         color:"#3b82f6",     border:isGlass?"rgba(255,255,255,0.5)":"rgba(59,130,246,0.3)" },
+            { icon:"🟡", label:"Em andamento", value:countBy("in_progress"),  color:"#f59e0b",     border:isGlass?"rgba(255,255,255,0.5)":"rgba(245,158,11,0.3)" },
+            { icon:"✅", label:"Concluídas",   value:countBy("done"),         color:"#22c55e",     border:isGlass?"rgba(255,255,255,0.5)":"rgba(34,197,94,0.3)"  },
           ].map((c,i)=>(
             <div key={i} className="card3d-os" style={{ border:`1px solid ${c.border}` }}>
               <div style={{ fontSize:"1.5rem" }}>{c.icon}</div>
@@ -923,8 +960,10 @@ export default function Orders() {
               </thead>
               <tbody>
                 {filtered.map(o=>{
-                  const st = STATUS_MAP[o.status]||STATUS_MAP.open;
-                  const podeCheckin = o.status==="open"||o.status==="in_progress";
+                  const effStatus = effectiveStatus(o);
+                  const st = STATUS_MAP[effStatus]||STATUS_MAP.open;
+                  const isOverlay = !!overlays[String(o.id)];
+                  const podeCheckin = effStatus==="open"||effStatus==="in_progress";
                   return (
                     <tr key={o.id} className="os-row" style={{ borderBottom:`1px solid ${isGlass?"rgba(255,255,255,0.15)":theme.border}`, transition:"background 0.15s" }}>
                       <td style={{ padding:"12px 16px", verticalAlign:"middle" }}>
@@ -947,15 +986,21 @@ export default function Orders() {
                       <td style={{ padding:"12px 16px", verticalAlign:"middle", fontWeight:700, color:theme.income }}>{fmt(o.total)}</td>
                       {!isMobile&&<td style={{ padding:"12px 16px", verticalAlign:"middle", color:theme.textMuted }}>{fmtDate(o.created_at)}</td>}
                       <td style={{ padding:"12px 16px", verticalAlign:"middle" }}>
-                        <select style={{ border:"none", borderRadius:20, padding:"4px 10px", fontSize:"0.75rem", fontWeight:600, cursor:"pointer", outline:"none", colorScheme, color:st.color, background:st.bg }} value={o.status} onChange={e=>changeStatus(o,e.target.value)}>
-                          {Object.entries(STATUS_MAP).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-                        </select>
+                        {isOverlay ? (
+                          <span title="Atualizado offline — sincroniza ao reconectar" style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"4px 10px", borderRadius:20, fontSize:"0.72rem", fontWeight:600, color:st.color, background:st.bg }}>
+                            {st.label} <span style={{ fontSize:9 }}>⏳</span>
+                          </span>
+                        ) : (
+                          <select style={{ border:"none", borderRadius:20, padding:"4px 10px", fontSize:"0.75rem", fontWeight:600, cursor:"pointer", outline:"none", colorScheme, color:st.color, background:st.bg }} value={o.status} onChange={e=>changeStatus(o,e.target.value)}>
+                            {Object.entries(STATUS_MAP).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                          </select>
+                        )}
                       </td>
                       <td style={{ padding:"12px 16px", verticalAlign:"middle" }}>
                         {podeCheckin ? (
-                          <button style={{ background:o.status==="in_progress"?"rgba(34,197,94,0.12)":"rgba(79,142,247,0.12)", border:`1px solid ${o.status==="in_progress"?"rgba(34,197,94,0.3)":"rgba(79,142,247,0.3)"}`, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:"0.8rem", fontWeight:600, color:o.status==="in_progress"?"#22c55e":"#4f8ef7", whiteSpace:"nowrap" }}
+                          <button style={{ background:effStatus==="in_progress"?"rgba(34,197,94,0.12)":"rgba(79,142,247,0.12)", border:`1px solid ${effStatus==="in_progress"?"rgba(34,197,94,0.3)":"rgba(79,142,247,0.3)"}`, borderRadius:8, padding:"5px 10px", cursor:"pointer", fontSize:"0.8rem", fontWeight:600, color:effStatus==="in_progress"?"#22c55e":"#4f8ef7", whiteSpace:"nowrap" }}
                             onClick={()=>setCheckinOrder(o)}>
-                            {o.status==="in_progress" ? "✅ Finalizar" : "📍 Check-in"}
+                            {effStatus==="in_progress" ? "✅ Finalizar" : "📍 Check-in"}
                           </button>
                         ) : (
                           <span style={{ fontSize:"0.75rem", color:theme.textMuted }}>—</span>
@@ -980,7 +1025,7 @@ export default function Orders() {
         <CheckinModal
           order={checkinOrder} isGlass={isGlass} isMobile={isMobile} theme={theme}
           onClose={() => setCheckinOrder(null)}
-          onSuccess={() => { cacheInvalidate("sv_orders"); fetchOrders(); showToast("Registro salvo!"); setTimeout(() => setCheckinOrder(null), 1500); }}
+          onSuccess={() => { cacheInvalidate("sv_orders"); loadOverlays(); fetchOrders(); showToast("Registro salvo!"); setTimeout(() => setCheckinOrder(null), 1500); }}
         />
       )}
 
@@ -996,7 +1041,7 @@ export default function Orders() {
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:20 }}>
               {[
-                { label:"Status",    value: STATUS_MAP[detailOrder.status]?.label || detailOrder.status },
+                { label:"Status",    value: STATUS_MAP[effectiveStatus(detailOrder)]?.label || detailOrder.status },
                 { label:"Total",     value: fmt(detailOrder.total) },
                 { label:"Criado em", value: fmtDate(detailOrder.created_at) },
                 { label:"Concluído", value: fmtDate(detailOrder.finished_at) },
@@ -1037,7 +1082,7 @@ export default function Orders() {
                     <div style={{ color:theme.textMuted, marginBottom:2 }}>🏁 Saída</div>
                     <div style={{ color:theme.textPrimary, fontWeight:600 }}>{chk.checkout_at ? chk.checkout_at.replace("T"," ").slice(0,16) : "Em andamento..."}</div>
                   </div>
-                  {/* Endereço do cliente (resolve item 4) */}
+                  {/* Endereço do cliente */}
                   {chk.client_address && chk.client_address !== "—" && (
                     <div style={{ gridColumn:"1/-1" }}>
                       <div style={{ color:theme.textMuted, marginBottom:2 }}>🏠 Endereço</div>
@@ -1068,9 +1113,9 @@ export default function Orders() {
             ))}
             <div style={{ display:"flex", justifyContent:"flex-end", gap:12, marginTop:16 }}>
               <button style={btnSecondary} onClick={() => setDetailOrder(null)}>Fechar</button>
-              {(detailOrder.status==="open"||detailOrder.status==="in_progress") && (
+              {(effectiveStatus(detailOrder)==="open"||effectiveStatus(detailOrder)==="in_progress") && (
                 <button style={btnPrimary} onClick={() => { setDetailOrder(null); setCheckinOrder(detailOrder); }}>
-                  {detailOrder.status==="in_progress" ? "✅ Finalizar serviço" : "📍 Iniciar Check-in"}
+                  {effectiveStatus(detailOrder)==="in_progress" ? "✅ Finalizar serviço" : "📍 Iniciar Check-in"}
                 </button>
               )}
             </div>
@@ -1097,7 +1142,7 @@ export default function Orders() {
       )}
 
       {toast && (
-        <div style={{ position:"fixed", bottom:isMobile?16:28, right:isMobile?16:28, left:isMobile?16:"auto", color:"#fff", padding:"12px 22px", borderRadius:12, fontWeight:600, fontSize:"0.9rem", zIndex:9999, boxShadow:"0 8px 30px rgba(0,0,0,0.4)", background:toast.type==="error"?"#ef4444":theme.primaryGrad, textAlign:isMobile?"center":"left" }}>
+        <div style={{ position:"fixed", bottom:isMobile?16:28, right:isMobile?16:28, left:isMobile?16:"auto", color:"#fff", padding:"12px 22px", borderRadius:12, fontWeight:600, fontSize:"0.9rem", zIndex:9999, boxShadow:"0 8px 30px rgba(0,0,0,0.4)", background:toast.type==="error"?"#ef4444":toast.type==="warn"?"#f59e0b":theme.primaryGrad, textAlign:isMobile?"center":"left" }}>
           {toast.msg}
         </div>
       )}
