@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useNicho } from "../../contexts/NichoContext";
 import { logoutUser } from "../../services/api";
+import PlanBadge from "../PlanBadge";
 
 const STYLE_KEY    = "sv_sidebar_style";
 const AUTOHIDE_KEY = "sv_sidebar_autohide";
@@ -42,25 +43,26 @@ function useMenuItems() {
     { to:"/goals",        icon:"🎯", label:"Metas"         },
     { to:"/settings",     icon:"⚙️", label:"Configurações" },
   ] : [
-    { to:"/dashboard",           icon:"🏠", label:"Dashboard",          roles:null,                                                          module:"dashboard"    },
-    { to:"/clients",             icon:"👥", label:label("clients"),     roles:["admin","financial","seller","encarregado"],                  module:"clients"      },
-    { to:"/transactions",        icon:"💰", label:"Transações",         roles:["admin","financial"],                                         module:"transactions", children:[
+    { to:"/dashboard",           icon:"🏠", label:"Dashboard",            roles:null,                                                          module:"dashboard"    },
+    { to:"/clients",             icon:"👥", label:label("clients"),       roles:["admin","financial","seller","encarregado"],                  module:"clients"      },
+    { to:"/transactions",        icon:"💰", label:"Transações",           roles:["admin","financial"],                                         module:"transactions", children:[
       { to:"/transactions", label:"Todas as transações" },
       { to:"/bills",        label:"Contas a pagar/receber" },
     ]},
-    { to:"/analytics",           icon:"📊", label:"Analytics",          roles:["admin","financial"],                                         module:"analytics"    },
-    { to:"/reports",             icon:"📈", label:"Relatórios",         roles:["admin","financial"],                                         module:"reports"      },
-    { to:"/products",            icon:"📦", label:label("products"),    roles:["admin","financial","stock","seller"],                        module:"products"     },
-    { to:"/quotes",              icon:"🧾", label:"Orçamentos",         roles:["admin","financial"],                                         module:"quotes"       },
-    { to:"/orders",              icon:"📋", label:"Ordens de Serviço",  roles:["admin","financial","seller","stock","viewer","encarregado"], module:"orders"       },
-    { to:"/autorizacao-checkin", icon:"🔑", label:"Autorização Check-in", roles:["admin","encarregado"],                                     module:"orders"       },
-    { to:"/sales",               icon:"🛒", label:label("sales"),       roles:["admin","financial"],                                         module:"orders"       },
-    ...(canNFe ? [{ to:"/sales", icon:"🧾", label:"Emitir NF-e",        roles:["admin"],                                                     module:"orders", nfe:true }] : []),
-    { to:"/team",                icon:"👤", label:"Equipe",             roles:["admin"],                                                     module:"team"         },
-    { to:"/commissions",         icon:"💸", label:"Comissões",          roles:["admin","financial","seller","encarregado"],                  module:"commissions"  },
-    { to:"/import-export",       icon:"📂", label:"Importar/Exportar",  roles:["admin","financial"],                                         module:"import"       },
-    { to:"/goals",               icon:"🎯", label:"Metas",              roles:["admin","financial"],                                         module:"goals"        },
-    { to:"/settings",            icon:"⚙️", label:"Configurações",      roles:["admin"],                                                     module:"settings"     },
+    { to:"/analytics",           icon:"📊", label:"Analytics",            roles:["admin","financial"],                                         module:"analytics"    },
+    { to:"/reports",             icon:"📈", label:"Relatórios",           roles:["admin","financial"],                                         module:"reports"      },
+    { to:"/products",            icon:"📦", label:label("products"),      roles:["admin","financial","stock","seller"],                        module:"products"     },
+    { to:"/quotes",              icon:"🧾", label:"Orçamentos",           roles:["admin","financial"],                                         module:"quotes"       },
+    { to:"/orders",              icon:"📋", label:"Ordens de Serviço",    roles:["admin","financial","seller","stock","viewer","encarregado"], module:"orders"       },
+    { to:"/autorizacao-checkin", icon:"🔑", label:"Autorização Check-in", roles:["admin","encarregado"],                                       module:"orders"       },
+    { to:"/sales",               icon:"🛒", label:label("sales"),         roles:["admin","financial"],                                         module:"orders"       },
+    ...(canNFe ? [{ to:"/sales", icon:"🧾", label:"Emitir NF-e",          roles:["admin"],                                                     module:"orders", nfe:true }] : []),
+    { to:"/team",                icon:"👤", label:"Equipe",               roles:["admin"],                                                     module:"team"         },
+    { to:"/commissions",         icon:"💸", label:"Comissões",            roles:["admin","financial","seller","encarregado"],                  module:"commissions"  },
+    { to:"/import-export",       icon:"📂", label:"Importar/Exportar",    roles:["admin","financial"],                                         module:"import"       },
+    { to:"/goals",               icon:"🎯", label:"Metas",                roles:["admin","financial"],                                         module:"goals"        },
+    { to:"/plans",               icon:"💎", label:"Planos",               roles:["admin"],                                                     module:"dashboard"    },
+    { to:"/settings",            icon:"⚙️", label:"Configurações",        roles:["admin"],                                                     module:"settings"     },
   ];
 
   return all.filter(i => {
@@ -129,9 +131,13 @@ function SidebarVertical({ menuItems, theme, isGlass, sidebarOpen, setSidebarOpe
     }}
       onMouseEnter={() => setSidebarOpen(true)}
       onMouseLeave={() => setSidebarOpen(false)}>
+
+      {/* Logo */}
       <div style={{ flexShrink:0, marginBottom:20, opacity:sidebarOpen?1:0, transition:"0.3s" }}>
         <h2 style={{ whiteSpace:"nowrap", margin:0, fontWeight:600, letterSpacing:1, color:theme.textPrimary }}>SV Finance</h2>
       </div>
+
+      {/* Menu items */}
       <div style={{ flex:1, overflowY:"auto", overflowX:"hidden", minHeight:0 }}>
         {menuItems.map(item => {
           const active   = isActive(item.to) && !item.nfe;
@@ -157,7 +163,21 @@ function SidebarVertical({ menuItems, theme, isGlass, sidebarOpen, setSidebarOpe
           );
         })}
       </div>
+
+      {/* Rodapé: PlanBadge + Sair */}
       <div style={{ flexShrink:0, borderTop:`1px solid ${border}`, paddingTop:10, marginTop:10 }}>
+
+        {/* PlanBadge — só aparece quando o sidebar está aberto */}
+        <div style={{
+          overflow:"hidden", maxHeight:sidebarOpen?"120px":"0",
+          opacity:sidebarOpen?1:0,
+          transition:"max-height 0.3s ease, opacity 0.3s ease",
+          marginBottom:sidebarOpen?10:0,
+        }}>
+          <PlanBadge variant="full" />
+        </div>
+
+        {/* Sair */}
         <div style={{ padding:12, cursor:"pointer", borderRadius:10, transition:"all 0.2s" }}
           onMouseEnter={e=>e.currentTarget.style.background="rgba(239,68,68,0.12)"}
           onMouseLeave={e=>e.currentTarget.style.background="transparent"}
@@ -253,7 +273,9 @@ function SidebarHorizontal({ menuItems, theme, isGlass }) {
           </div>
         </div>
         {canR && <button onClick={()=>scrollNav(1)} style={{ background:"none",border:"none",color:"rgba(255,255,255,0.5)",fontSize:20,cursor:"pointer",padding:"0 4px",flexShrink:0 }}>›</button>}
-        <div style={{ display:"flex",alignItems:"center",gap:6,padding:"0 12px",flexShrink:0 }}>
+        <div style={{ display:"flex",alignItems:"center",gap:8,padding:"0 12px",flexShrink:0 }}>
+          {/* PlanBadge pill na horizontal */}
+          <PlanBadge variant="pill" />
           <button onClick={toggleAH} style={{ background:"transparent",border:"none",color:autoHide?theme.primary:"rgba(255,255,255,0.4)",fontSize:16,cursor:"pointer",padding:"4px 6px",borderRadius:6 }}>{autoHide?"📌":"👁"}</button>
           <button onClick={()=>{logoutUser();navigate("/");}} style={{ background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,color:"#f87171",padding:"5px 12px",cursor:"pointer",fontWeight:600,fontSize:12 }}>Sair</button>
         </div>
@@ -570,7 +592,13 @@ function SidebarMobile({ menuItems, theme, isGlass }) {
             </Link>
           ))}
         </div>
-        <div style={{ padding:14,flexShrink:0 }}>
+
+        {/* PlanBadge no rodapé do painel mobile */}
+        <div style={{ padding:"12px 14px", borderTop:`1px solid ${border}`, flexShrink:0 }}>
+          <PlanBadge variant="full" />
+        </div>
+
+        <div style={{ padding:"0 14px 14px", flexShrink:0 }}>
           <button onClick={()=>{logoutUser();navigate("/");}} style={{ width:"100%",padding:"14px 16px",background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:12,color:"#ef4444",fontSize:15,fontWeight:600,cursor:"pointer",textAlign:"left" }}>
             🚪 Sair
           </button>
