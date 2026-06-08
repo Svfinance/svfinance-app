@@ -23,6 +23,7 @@ import Commissions    from "./pages/Commissions"
 import BrandStudio    from "./pages/BrandStudio"
 import CheckinScanner from "./pages/Checkin/CheckinScanner"
 import CheckinPin     from "./pages/CheckinPin"
+import Plans          from "./pages/Plans"
 import ProtectedRoute from "./components/ProtectedRoute"
 import OfflineBar     from "./components/OfflineBar"
 
@@ -51,6 +52,7 @@ function App() {
               <Route path="/settings"     element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/goals"        element={<ProtectedRoute><Goals /></ProtectedRoute>} />
               <Route path="/brand-studio" element={<ProtectedRoute><BrandStudio /></ProtectedRoute>} />
+              <Route path="/plans"        element={<ProtectedRoute><Plans /></ProtectedRoute>} />
 
               {/* /orders — todos os roles operacionais */}
               <Route path="/orders" element={
