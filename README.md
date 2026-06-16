@@ -1,156 +1,100 @@
-# SV Finance Control — Frontend
+# svfinance-app
 
-![SV Finance](public/logo.gif)
+> Frontend React do **SV Finance** — ERP self-service para MEIs e pequenas empresas brasileiras.
 
-> Sistema SaaS de controle financeiro para pessoas físicas e empresas.  
-> Desenvolvido com React + Vite, hospedado na Vercel.
-
----
-
-## 🚀 Stack
-
-- **React 18** + Vite
-- **React Router DOM** — navegação SPA
-- **Recharts** — gráficos e analytics
-- **Context API** — tema e autenticação
-- **CSS-in-JS** (inline styles) — sem dependência de UI libs
-- **Vercel** — deploy automático via GitHub
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![Vite](https://img.shields.io/badge/Vite-5.x-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
+[![Deploy](https://img.shields.io/badge/Deploy-Vercel-black?logo=vercel)](https://vercel.com)
+[![License](https://img.shields.io/badge/License-Proprietary-red)](./LICENSE)
 
 ---
 
-## 🌐 URLs
+## Sobre
 
-| Ambiente   | URL                                                      |
-|------------|----------------------------------------------------------|
-| Produção   | https://finance-control-web-five.vercel.app              |
-| Domínio    | https://svfinance.com.br *(em configuração)*             |
-| API        | https://finance-control-api-production.up.railway.app/api|
+Interface principal do SaaS SV Finance. Consome a API REST em `api.svfinance.com.br`.
+Multi-tenant por `company_id`. Sistema de temas, controle de planos e feature gating integrados.
+
+**URL de produção:** `https://app.svfinance.com.br`
 
 ---
 
-## 📁 Estrutura do Projeto
+## Stack
+
+| Tecnologia | Uso |
+|---|---|
+| React 19 + Vite | Framework e bundler |
+| React Router DOM | Roteamento SPA |
+| Recharts | Gráficos e analytics |
+| @zxing/browser | Leitura de QR Code (check-in) |
+| Estilos inline JS | Sem Tailwind, sem CSS modules |
+
+---
+
+## Estrutura
+
 ```
-finance-control-web/
-├── public/
-│   └── logo.gif                  # Favicon e ícone mobile
-├── src/
-│   ├── assets/                   # Imagens, GIFs, SVGs
-│   ├── components/
-│   │   ├── layout/
-│   │   │   ├── PageLayout.jsx    # Layout base + sino de notificações
-│   │   │   └── Sidebar.jsx       # Menu lateral (PF e PJ)
-│   │   └── ProtectedRoute.jsx    # Proteção de rotas por role
-│   ├── contexts/
-│   │   └── ThemeContext.jsx      # Tema global (4 opções)
-│   ├── pages/
-│   │   ├── Login.jsx             # Auth: login, cadastro, verificação, reset
-│   │   ├── Dashboard.jsx         # Dashboard PF e PJ
-│   │   ├── Transactions.jsx      # Transações (PF e PJ)
-│   │   ├── Bills.jsx             # Contas a pagar/receber
-│   │   ├── Goals.jsx             # Metas financeiras (PF)
-│   │   ├── Analytics.jsx         # Gráficos e relatórios
-│   │   ├── Products.jsx          # Produtos e serviços (PJ)
-│   │   ├── Clients.jsx           # Clientes (PJ)
-│   │   ├── Quotes.jsx            # Orçamentos com PDF (PJ)
-│   │   ├── Sales.jsx             # Vendas / Pedidos / OS (PJ)
-│   │   ├── Team.jsx              # Equipe e roles (PJ admin)
-│   │   └── Settings.jsx          # Temas visuais
-│   ├── services/
-│   │   └── api.js                # Funções de comunicação com a API
-│   ├── themes/
-│   │   └── themes.js             # 4 temas: blue, glass, aurora, gray
-│   ├── App.jsx                   # Rotas principais
-│   └── main.jsx                  # Entry point
-├── index.html
-├── vite.config.js
-└── package.json
-```
----
-
-## 🎨 Temas Disponíveis
-
-| Tema    | Descrição                        |
-|---------|----------------------------------|
-| Blue    | Escuro com tons de azul (padrão) |
-| Glass   | Claro com glassmorphism          |
-| Aurora  | Escuro com gradientes vibrantes  |
-| Gray    | Escuro neutro cinza/prata        |
-
----
-
-## 👥 Tipos de Conta
-
-### Pessoa Física (PF)
-Dashboard · Transações · Contas · Analytics · Metas 🎯 · Temas
-
-### Empresa (PJ)
-Dashboard · Clientes · Transações · Contas · Analytics · Produtos · Orçamentos · Vendas · Equipe · Temas
-
-### Roles (PJ)
-| Role      | Permissões                                      |
-|-----------|-------------------------------------------------|
-| admin     | Acesso total                                    |
-| financial | Transações, Contas, Analytics                   |
-| stock     | Produtos e Estoque                              |
-| seller    | Vendas e Orçamentos (próprias vendas)           |
-| viewer    | Somente leitura                                 |
-
----
-
-## ⚙️ Variáveis de Ambiente
-
-Cria um arquivo `.env` na raiz:
-
-```env
-VITE_API_URL=https://finance-control-api-production.up.railway.app/api
+src/
+├── App.jsx                  # Rotas React Router
+├── services/
+│   └── api.js               # HTTP client + auth headers
+├── contexts/
+│   ├── ThemeContext.jsx      # Tema global (blue/gray/glass/aurora)
+│   ├── NichoContext.jsx      # Nicho da empresa
+│   └── PlanContext.jsx       # Plano + feature gating
+├── themes/
+│   └── themes.js             # Definição visual dos temas
+├── components/
+│   ├── layout/
+│   │   ├── Sidebar.jsx
+│   │   └── PageLayout.jsx
+│   ├── PlanBadge.jsx
+│   └── CheckoutModal.jsx
+└── pages/
+    ├── Dashboard.jsx
+    ├── Plans.jsx
+    ├── Orders.jsx
+    ├── Clients.jsx
+    └── ...
 ```
 
 ---
 
-## 🛠️ Rodando Localmente
+## Configuração local
 
 ```bash
-# Instalar dependências
+git clone git@github.com:Svfinance/svfinance-app.git
+cd svfinance-app
 npm install
-
-# Rodar em desenvolvimento
 npm run dev
-
-# Build para produção
-npm run build
 ```
 
-Acesse: `http://localhost:5173`
+Disponível em `http://localhost:5173`. Backend necessário em `http://localhost:5000`.
 
 ---
 
-## 🚀 Deploy
+## Módulos disponíveis
 
-O deploy é automático via **GitHub + Vercel**.  
-Qualquer push na branch `main` dispara um novo deploy.
-
----
-
-## 📦 Funcionalidades Principais
-
-- ✅ Autenticação com verificação de email (Resend)
-- ✅ Recuperação de senha por email
-- ✅ Multi-tenant (empresas isoladas)
-- ✅ Dashboard financeiro com comparativos
-- ✅ Transações e contas recorrentes
-- ✅ Metas financeiras com progresso visual
-- ✅ Orçamentos com geração de PDF (2 temas)
-- ✅ Vendas com Pedido (PED) e Ordem de Serviço (OS)
-- ✅ Controle de estoque com movimentações
-- ✅ SKU de produtos
-- ✅ Analytics com 7 tipos de gráficos
-- ✅ Sistema de notificações globais 🔔
-- ✅ 4 temas visuais personalizáveis
-- ✅ Responsivo (mobile e desktop)
+Dashboard · Clientes · Produtos · Vendas (PED/OS) · Orçamentos · Financeiro · Contas · DRE · Fluxo de Caixa · Relatórios · Estoque · Comissões · Metas · Equipe · NF-e · Importação CSV · Brand Studio · Planos e Billing
 
 ---
 
-## 👨‍💻 Desenvolvido por
+## Padrões obrigatórios
 
-**Guilherme Salvatini**  
-[github.com/Salvatini95](https://github.com/Salvatini95)
+```javascript
+// Autenticação — sempre via getAuthHeaders()
+import { getAuthHeaders } from '../services/api';
+
+// Estilos — sempre inline JS (nunca classes CSS externas)
+const style = { backgroundColor: theme.bg, color: theme.text };
+
+// Multi-tenancy — company_id sempre vem do localStorage após login
+const companyId = localStorage.getItem('company_id');
+```
+
+**Este repo nunca deve conter:** `isRG()`, tema `clean` hardcoded, `components/restaura/`, VitePWA ou features específicas de clientes de implementação.
+
+---
+
+## Deploy
+
+Push na `main` → Vercel detecta → build e deploy automático.
