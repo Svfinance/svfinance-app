@@ -81,7 +81,7 @@ export default function Clients() {
 
     // 1) snapshot offline imediato
     const snap = await getSnapshot("clients");
-    if (snap) { setClients(snap); setLoading(false); }
+    if (snap) setClients(snap);
 
     await loadPending();
 
@@ -97,7 +97,7 @@ export default function Clients() {
       const list = Array.isArray(data) ? data : [];
       setClients(list);
       saveSnapshot("clients", list);
-    } catch { /* mantém snapshot */ }
+    } catch { showToast("Não foi possível atualizar a lista.", "error"); }
     finally { setLoading(false); }
   }
 
@@ -312,7 +312,11 @@ export default function Clients() {
         setDeleteConfirm(null);
         fetchClients();
       }
-      else showToast("Erro ao remover.", "error");
+      else {
+        const err = await res.json().catch(() => ({}));
+        setDeleteConfirm(null);
+        showToast(err.msg || "Erro ao remover.", "error");
+      }
     } catch { showToast("Erro de conexão.", "error"); }
   }
 
