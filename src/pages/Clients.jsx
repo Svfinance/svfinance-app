@@ -307,10 +307,14 @@ export default function Clients() {
         headers: { Authorization: `Bearer ${token()}` }
       });
       if (res.ok) {
-        showToast("Cliente removido.");
+        setClients(prev => {
+          const updated = prev.filter(c => c.id !== id);
+          saveSnapshot("clients", updated);
+          return updated;
+        });
         sessionStorage.removeItem("sv_clients");
         setDeleteConfirm(null);
-        fetchClients();
+        showToast("Cliente removido.");
       }
       else {
         const err = await res.json().catch(() => ({}));
