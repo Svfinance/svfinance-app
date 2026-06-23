@@ -318,10 +318,14 @@ export default function Clients() {
       }
       else {
         const err = await res.json().catch(() => ({}));
-        setDeleteConfirm(null);
-        showToast(err.msg || "Erro ao remover.", "error");
+        if (res.status === 400) {
+          showToast(err.msg || "Erro ao remover.", "error");
+        } else {
+          setDeleteConfirm(null);
+          showToast("Erro ao remover. Tente novamente.", "error");
+        }
       }
-    } catch { showToast("Erro de conexão.", "error"); }
+    } catch { setDeleteConfirm(null); showToast("Erro de conexão.", "error"); }
   }
 
   // ── Filtro (mescla servidor + pendentes) ───────────────────────────────────

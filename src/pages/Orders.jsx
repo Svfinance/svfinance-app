@@ -1093,10 +1093,14 @@ export default function Orders() {
       if (res.ok) { showToast("O.S removida."); setDeleteConfirm(null); cacheInvalidate("sv_orders"); fetchAll(); }
       else {
         const err = await res.json().catch(() => ({}));
-        setDeleteConfirm(null);
-        showToast(err.msg || "Erro ao remover.", "error");
+        if (res.status === 400) {
+          showToast(err.msg || "Erro ao remover.", "error");
+        } else {
+          setDeleteConfirm(null);
+          showToast("Erro ao remover. Tente novamente.", "error");
+        }
       }
-    } catch { showToast("Erro de conexão.", "error"); }
+    } catch { setDeleteConfirm(null); showToast("Erro de conexão.", "error"); }
   }
 
   function effectiveStatus(o) {
